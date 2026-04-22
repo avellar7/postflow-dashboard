@@ -5,6 +5,7 @@ interface MetricCardProps {
   value: string | number;
   icon?: ReactNode;
   color?: 'primary' | 'success' | 'warning' | 'destructive' | 'muted';
+  description?: string;
 }
 
 const colorMap: Record<string, string> = {
@@ -15,7 +16,7 @@ const colorMap: Record<string, string> = {
   muted: 'text-muted-foreground',
 };
 
-export function MetricCard({ label, value, icon, color = 'primary' }: MetricCardProps) {
+export function MetricCard({ label, value, icon, color = 'primary', description }: MetricCardProps) {
   return (
     <div className="glass-card p-4 flex flex-col gap-2">
       <div className="flex items-center justify-between">
@@ -23,6 +24,7 @@ export function MetricCard({ label, value, icon, color = 'primary' }: MetricCard
         {icon}
       </div>
       <span className={`text-2xl font-bold ${colorMap[color]}`}>{value}</span>
+      {description && <p className="text-[10px] text-muted-foreground leading-tight">{description}</p>}
     </div>
   );
 }
