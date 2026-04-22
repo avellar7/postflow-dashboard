@@ -102,6 +102,15 @@ export default function StoriesPage() {
   };
 
   const handlePublish = () => {
+    if (linkStrategy === 'link_bio' && !linkUrl.trim()) {
+      toast.error('Insira uma URL antes de publicar com link na bio.');
+      return;
+    }
+    if (linkStrategy === 'text_cta' && !ctaText.trim()) {
+      toast.error('Escreva um CTA antes de publicar.');
+      return;
+    }
+
     const mediaId = selectedMedia.length > 0 ? selectedMedia[0].id : undefined;
     const base = {
       strategy: linkStrategy,
@@ -319,7 +328,7 @@ export default function StoriesPage() {
           ) : (
             <div className="space-y-2">
               {stories.map(s => (
-                <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/30">
+                <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/30 group">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-foreground">Story #{s.id.slice(0, 6)}</p>
                     <p className="text-[10px] text-muted-foreground">{new Date(s.created_at).toLocaleString('pt-BR')}</p>
@@ -329,7 +338,12 @@ export default function StoriesPage() {
                       {s.cta_text && ` · ${s.cta_text}`}
                     </p>
                   </div>
-                  <StatusBadge status={s.status === 'posted' ? 'completed' : s.status === 'failed' ? 'error' : 'pending'} />
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={s.status === 'posted' ? 'completed' : s.status === 'failed' ? 'error' : 'pending'} />
+                    <button onClick={() => removeStory.mutate(s.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

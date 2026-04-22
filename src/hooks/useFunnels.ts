@@ -27,6 +27,15 @@ export function useFunnels() {
     onError: () => toast.error('Erro ao criar funil'),
   });
 
+  const update = useMutation({
+    mutationFn: async (input: { id: string; name: string }) => {
+      const { error } = await supabase.from('funnels').update({ name: input.name }).eq('id', input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['funnels'] }); toast.success('Funil atualizado!'); },
+    onError: () => toast.error('Erro ao atualizar funil'),
+  });
+
   const remove = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('funnels').delete().eq('id', id);
@@ -36,5 +45,5 @@ export function useFunnels() {
     onError: () => toast.error('Erro ao remover funil'),
   });
 
-  return { funnels: query.data ?? [], isLoading: query.isLoading, create, remove };
+  return { funnels: query.data ?? [], isLoading: query.isLoading, create, update, remove };
 }
