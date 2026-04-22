@@ -27,6 +27,15 @@ export function useCaptions() {
     onError: () => toast.error('Erro ao salvar legenda'),
   });
 
+  const update = useMutation({
+    mutationFn: async ({ id, content, title }: { id: string; content?: string; title?: string }) => {
+      const { error } = await supabase.from('saved_captions').update({ content, title, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['captions'] }); toast.success('Legenda atualizada!'); },
+    onError: () => toast.error('Erro ao atualizar legenda'),
+  });
+
   const remove = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('saved_captions').delete().eq('id', id);
@@ -36,5 +45,5 @@ export function useCaptions() {
     onError: () => toast.error('Erro ao remover legenda'),
   });
 
-  return { captions: query.data ?? [], isLoading: query.isLoading, create, remove };
+  return { captions: query.data ?? [], isLoading: query.isLoading, create, update, remove };
 }

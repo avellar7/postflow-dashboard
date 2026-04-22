@@ -182,11 +182,18 @@ export type Database = {
       media_items: {
         Row: {
           created_at: string
+          duration_seconds: number | null
           file_name: string | null
+          file_size: number | null
           file_url: string | null
           folder_id: string | null
           id: string
           media_type: Database["public"]["Enums"]["media_type"]
+          mime_type: string | null
+          original_file_path: string | null
+          processed_file_path: string | null
+          processing_log: Json
+          processing_status: string
           thumbnail_url: string | null
           title: string
           updated_at: string
@@ -194,11 +201,18 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          duration_seconds?: number | null
           file_name?: string | null
+          file_size?: number | null
           file_url?: string | null
           folder_id?: string | null
           id?: string
           media_type?: Database["public"]["Enums"]["media_type"]
+          mime_type?: string | null
+          original_file_path?: string | null
+          processed_file_path?: string | null
+          processing_log?: Json
+          processing_status?: string
           thumbnail_url?: string | null
           title: string
           updated_at?: string
@@ -206,11 +220,18 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          duration_seconds?: number | null
           file_name?: string | null
+          file_size?: number | null
           file_url?: string | null
           folder_id?: string | null
           id?: string
           media_type?: Database["public"]["Enums"]["media_type"]
+          mime_type?: string | null
+          original_file_path?: string | null
+          processed_file_path?: string | null
+          processing_log?: Json
+          processing_status?: string
           thumbnail_url?: string | null
           title?: string
           updated_at?: string
@@ -259,11 +280,14 @@ export type Database = {
           account_username: string | null
           caption_id: string | null
           created_at: string
+          error_message: string | null
           id: string
           media_id: string | null
           media_name: string | null
           mode: Database["public"]["Enums"]["queue_mode"]
+          output_media_id: string | null
           post_mode: Database["public"]["Enums"]["post_mode"]
+          processing_options: Json
           scheduled_for: string | null
           status: Database["public"]["Enums"]["queue_status"]
           updated_at: string
@@ -274,11 +298,14 @@ export type Database = {
           account_username?: string | null
           caption_id?: string | null
           created_at?: string
+          error_message?: string | null
           id?: string
           media_id?: string | null
           media_name?: string | null
           mode?: Database["public"]["Enums"]["queue_mode"]
+          output_media_id?: string | null
           post_mode?: Database["public"]["Enums"]["post_mode"]
+          processing_options?: Json
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["queue_status"]
           updated_at?: string
@@ -289,11 +316,14 @@ export type Database = {
           account_username?: string | null
           caption_id?: string | null
           created_at?: string
+          error_message?: string | null
           id?: string
           media_id?: string | null
           media_name?: string | null
           mode?: Database["public"]["Enums"]["queue_mode"]
+          output_media_id?: string | null
           post_mode?: Database["public"]["Enums"]["post_mode"]
+          processing_options?: Json
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["queue_status"]
           updated_at?: string
@@ -317,6 +347,13 @@ export type Database = {
           {
             foreignKeyName: "queue_items_media_id_fkey"
             columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "media_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "queue_items_output_media_id_fkey"
+            columns: ["output_media_id"]
             isOneToOne: false
             referencedRelation: "media_items"
             referencedColumns: ["id"]
