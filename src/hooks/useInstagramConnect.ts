@@ -12,7 +12,7 @@ export function useInstagramConnect() {
       const { data, error } = await supabase.functions.invoke('instagram-oauth-start');
       if (error) throw error;
       if (!data?.url) throw new Error('URL de autorização não recebida');
-      window.location.href = data.url;
+      window.open(data.url, '_blank');
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || 'Falha ao iniciar conexão com Instagram');
