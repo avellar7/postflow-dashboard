@@ -6,18 +6,24 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+function ok(body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // 0) Auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("[callback] missing auth header");
+      return ok({ ok: false, error: "Não autenticado" });
     }
 
     const supabase = createClient(
@@ -28,38 +34,33 @@ Deno.serve(async (req) => {
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      console.error("auth error", userError);
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("[callback] auth error", userError);
+      return ok({ ok: false, error: "Usuário não autenticado" });
     }
     const userId = user.id;
+    console.log("[callback] user authenticated:", userId);
 
+    // 1) Parse body
     const body = await req.json().catch(() => ({}));
     const code = body?.code as string | undefined;
     if (!code) {
-      return new Response(JSON.stringify({ error: "Missing code" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("[callback] missing code in body");
+      return ok({ ok: false, error: "Código de autorização ausente" });
     }
+    console.log("[callback] code received, length:", code.length);
 
+    // 2) Check secrets
     const clientId = Deno.env.get("INSTAGRAM_APP_ID");
     const clientSecret = Deno.env.get("INSTAGRAM_APP_SECRET");
     const redirectUri = Deno.env.get("INSTAGRAM_REDIRECT_URI");
 
     if (!clientId || !clientSecret || !redirectUri) {
-      return new Response(
-        JSON.stringify({ error: "Instagram integration not configured" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      console.error("[callback] missing secrets", { clientId: !!clientId, clientSecret: !!clientSecret, redirectUri: !!redirectUri });
+      return ok({ ok: false, error: "Integração com Instagram não configurada no servidor" });
     }
+    console.log("[callback] secrets present");
 
-    // 1) Exchange code for short-lived token
+    // 3) Exchange code for short-lived token
     const form = new URLSearchParams();
     form.set("client_id", clientId);
     form.set("client_secret", clientSecret);
@@ -78,24 +79,18 @@ Deno.serve(async (req) => {
 
     const shortJson = await shortRes.json();
     if (!shortRes.ok) {
-      console.error("short-token error", shortJson);
-      return new Response(
-        JSON.stringify({
-          error: shortJson?.error_message ||
-            shortJson?.error?.message ||
-            "Falha ao trocar code por token",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      console.error("[callback] short-token error", shortJson);
+      return ok({
+        ok: false,
+        error: shortJson?.error_message || shortJson?.error?.message || "Falha ao trocar code por token",
+      });
     }
+    console.log("[callback] short token obtained");
 
     const shortToken = shortJson.access_token as string;
     const permissions = shortJson.permissions ?? null;
 
-    // 2) Exchange for long-lived token (60 days)
+    // 4) Exchange for long-lived token (60 days)
     const longUrl = new URL("https://graph.instagram.com/access_token");
     longUrl.searchParams.set("grant_type", "ig_exchange_token");
     longUrl.searchParams.set("client_secret", clientSecret);
@@ -104,22 +99,17 @@ Deno.serve(async (req) => {
     const longRes = await fetch(longUrl.toString());
     const longJson = await longRes.json();
     if (!longRes.ok) {
-      console.error("long-token error", longJson);
-      return new Response(
-        JSON.stringify({
-          error: longJson?.error?.message ||
-            "Falha ao obter long-lived token",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      console.error("[callback] long-token error", longJson);
+      return ok({
+        ok: false,
+        error: longJson?.error?.message || "Falha ao obter long-lived token",
+      });
     }
     const longToken = longJson.access_token as string;
     const tokenType = (longJson.token_type as string) ?? "bearer";
+    console.log("[callback] long-lived token obtained");
 
-    // 3) Fetch basic profile
+    // 5) Fetch basic profile
     const meUrl = new URL("https://graph.instagram.com/v21.0/me");
     meUrl.searchParams.set("fields", "id,username,account_type");
     meUrl.searchParams.set("access_token", longToken);
@@ -127,24 +117,19 @@ Deno.serve(async (req) => {
     const meRes = await fetch(meUrl.toString());
     const meJson = await meRes.json();
     if (!meRes.ok) {
-      console.error("me error", meJson);
-      return new Response(
-        JSON.stringify({
-          error: meJson?.error?.message ||
-            "Falha ao obter perfil do Instagram",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      console.error("[callback] /me error", meJson);
+      return ok({
+        ok: false,
+        error: meJson?.error?.message || "Falha ao obter perfil do Instagram",
+      });
     }
 
     const instagramUserId = String(meJson.id);
     const username = meJson.username as string;
     const displayName = (meJson.account_type as string) ?? null;
+    console.log("[callback] profile fetched:", username, instagramUserId);
 
-    // 4) Upsert in DB (RLS: user_id = auth.uid())
+    // 6) Upsert in DB
     const { error: upsertError } = await supabase
       .from("instagram_accounts")
       .upsert(
@@ -164,31 +149,14 @@ Deno.serve(async (req) => {
       );
 
     if (upsertError) {
-      console.error("upsert error", upsertError);
-      return new Response(
-        JSON.stringify({ error: "Falha ao salvar conta no banco" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      console.error("[callback] upsert error", upsertError);
+      return ok({ ok: false, error: "Falha ao salvar conta no banco: " + upsertError.message });
     }
+    console.log("[callback] account saved successfully");
 
-    return new Response(
-      JSON.stringify({ success: true, username }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return ok({ ok: true, success: true, username });
   } catch (e) {
-    console.error("oauth-callback error", e);
-    return new Response(
-      JSON.stringify({ error: (e as Error).message ?? "Internal error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    console.error("[callback] unhandled error", e);
+    return ok({ ok: false, error: (e as Error).message ?? "Erro interno" });
   }
 });

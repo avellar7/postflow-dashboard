@@ -12,7 +12,7 @@ export function useInstagramConnect() {
       const { data, error } = await supabase.functions.invoke('instagram-oauth-start');
       if (error) throw error;
       if (!data?.url) throw new Error('URL de autorização não recebida');
-      window.open(data.url, '_blank');
+      window.location.href = data.url;
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || 'Falha ao iniciar conexão com Instagram');
@@ -26,8 +26,15 @@ export function useInstagramConnect() {
       const { data, error } = await supabase.functions.invoke('instagram-oauth-callback', {
         body: { code },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+
+      // Edge function now always returns 200; check for error in body
+      if (error) {
+        const msg = data?.error || error?.message || 'Falha ao conectar conta';
+        return { success: false, error: msg };
+      }
+      if (data?.error) {
+        return { success: false, error: data.error };
+      }
       return { success: true, username: data?.username };
     } catch (e: any) {
       console.error(e);
