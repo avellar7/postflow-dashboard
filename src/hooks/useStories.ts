@@ -2,9 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import type { Database } from '@/integrations/supabase/types';
-
-type StoryInsert = Database['public']['Tables']['stories']['Insert'];
 
 export function useStories() {
   const { user } = useAuth();
@@ -21,8 +18,16 @@ export function useStories() {
   });
 
   const create = useMutation({
-    mutationFn: async (input: Omit<StoryInsert, 'user_id'>) => {
-      const { data, error } = await supabase.from('stories').insert({ ...input, user_id: user!.id }).select().single();
+    mutationFn: async (input: { account_id?: string | null; strategy?: string; status?: string; media_id?: string; link_url?: string; cta_text?: string }) => {
+      const { data, error } = await supabase.from('stories').insert({
+        user_id: user!.id,
+        account_id: input.account_id ?? null,
+        strategy: (input.strategy as any) ?? 'none',
+        status: (input.status as any) ?? 'draft',
+        media_id: input.media_id ?? null,
+        link_url: input.link_url ?? null,
+        cta_text: input.cta_text ?? null,
+      }).select().single();
       if (error) throw error;
       return data;
     },
@@ -39,5 +44,14 @@ export function useStories() {
     onError: () => toast.error('Erro ao remover story'),
   });
 
-  return { stories: query.data ?? [], isLoading: query.isLoading, create, remove };
+  const removeAll = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('stories').delete().eq('user_id', user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['stories'] }); toast.success('Histórico limpo!'); },
+    onError: () => toast.error('Erro ao limpar histórico'),
+  });
+
+  return { stories: query.data ?? [], isLoading: query.isLoading, create, remove, removeAll };
 }
