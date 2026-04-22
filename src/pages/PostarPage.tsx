@@ -18,6 +18,9 @@ export default function PostarPage() {
   const [mode, setMode] = useState<'now' | 'schedule'>('now');
   const [postMode, setPostMode] = useState<'sequential' | 'burst'>('sequential');
   const [mediaCount, setMediaCount] = useState(1);
+  const [antiDetection, setAntiDetection] = useState(false);
+  const [metadataProfile, setMetadataProfile] = useState<'auto' | 'iphone' | 'android' | 'off'>('auto');
+  const [variations, setVariations] = useState(3);
 
   const handleGenerate = () => {
     toast.success('Legenda gerada com IA (mockado)');
