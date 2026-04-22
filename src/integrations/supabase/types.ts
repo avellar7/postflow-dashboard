@@ -414,11 +414,67 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_ctas: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          label: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      saved_links: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          updated_at: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          updated_at?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          updated_at?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       stories: {
         Row: {
           account_id: string | null
           created_at: string
+          cta_text: string | null
           id: string
+          link_url: string | null
           media_id: string | null
           status: Database["public"]["Enums"]["story_status"]
           strategy: Database["public"]["Enums"]["story_strategy"]
@@ -428,7 +484,9 @@ export type Database = {
         Insert: {
           account_id?: string | null
           created_at?: string
+          cta_text?: string | null
           id?: string
+          link_url?: string | null
           media_id?: string | null
           status?: Database["public"]["Enums"]["story_status"]
           strategy?: Database["public"]["Enums"]["story_strategy"]
@@ -438,7 +496,9 @@ export type Database = {
         Update: {
           account_id?: string | null
           created_at?: string
+          cta_text?: string | null
           id?: string
+          link_url?: string | null
           media_id?: string | null
           status?: Database["public"]["Enums"]["story_status"]
           strategy?: Database["public"]["Enums"]["story_strategy"]
