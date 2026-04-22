@@ -52,6 +52,41 @@
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
   }
+
+  [data-theme="red"] {
+    --primary: 0 65% 48%;
+    --accent: 0 65% 48%;
+    --ring: 0 65% 48%;
+    --sidebar-primary: 0 65% 48%;
+    --sidebar-ring: 0 65% 48%;
+  }
+
+  [data-theme="gray"] {
+    --primary: 220 10% 50%;
+    --accent: 220 10% 50%;
+    --ring: 220 10% 50%;
+    --sidebar-primary: 220 10% 50%;
+    --sidebar-ring: 220 10% 50%;
+  }
+
+  [data-theme="purple"] {
+    --primary: 270 60% 55%;
+    --accent: 270 60% 55%;
+    --ring: 270 60% 55%;
+    --sidebar-primary: 270 60% 55%;
+    --sidebar-ring: 270 60% 55%;
+  }
+
+  [data-theme="gold"] {
+    --primary: 40 70% 50%;
+    --accent: 40 70% 50%;
+    --ring: 40 70% 50%;
+    --sidebar-primary: 40 70% 50%;
+    --sidebar-ring: 40 70% 50%;
+    --primary-foreground: 0 0% 10%;
+    --accent-foreground: 0 0% 10%;
+    --sidebar-primary-foreground: 0 0% 10%;
+  }
 }
 
 @layer base {
@@ -85,7 +120,10 @@
     @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl;
   }
   .glow-blue {
-    box-shadow: 0 0 20px -5px hsl(217 91% 60% / 0.3);
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+  }
+  .glow-primary {
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
   }
   .grid-bg {
     background-image:
@@ -95,8 +133,8 @@
   }
   .gradient-mesh {
     background: 
-      radial-gradient(ellipse at 20% 50%, hsl(217 91% 60% / 0.08) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 20%, hsl(199 89% 48% / 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at 20% 50%, hsl(var(--primary) / 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, hsl(var(--info) / 0.05) 0%, transparent 50%),
       radial-gradient(ellipse at 50% 80%, hsl(222 20% 6%) 0%, hsl(222 20% 6%) 100%);
   }
 }
