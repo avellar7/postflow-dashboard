@@ -1,23 +1,27 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useFolders } from '@/hooks/useFolders';
 import { useMediaItems } from '@/hooks/useMediaItems';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
 import { toast } from 'sonner';
-import { FolderOpen, Plus, FolderPlus, Trash2, Loader2, ArrowLeft, Upload, Video, Image } from 'lucide-react';
+import { FolderOpen, Plus, FolderPlus, Trash2, Loader2, ArrowLeft, Upload, Video, Image, Pencil } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { useRef } from 'react';
 
 export default function BibliotecaPage() {
-  const { folders, isLoading, create, remove } = useFolders();
+  const { folders, isLoading, create, update, remove } = useFolders();
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const activeFolder = folders.find(f => f.id === activeFolderId);
 
   const handleCreate = () => {
     create.mutate({ name: `Pasta ${folders.length + 1}` });
+  };
+
+  const handleRename = (id: string, name: string) => {
+    update.mutate({ id, name });
   };
 
   return (
@@ -48,7 +52,7 @@ export default function BibliotecaPage() {
           ) : folders.length === 0 ? (
             <EmptyState icon={FolderPlus} title="Nenhuma pasta criada" description="Crie sua primeira pasta para organizar seus vídeos e mídias." />
           ) : (
-            <FolderGrid folders={folders} onOpen={setActiveFolderId} onRemove={(id) => remove.mutate(id)} />
+            <FolderGrid folders={folders} onOpen={setActiveFolderId} onRemove={(id) => remove.mutate(id)} onRename={handleRename} />
           )}
         </>
       )}
@@ -56,31 +60,86 @@ export default function BibliotecaPage() {
   );
 }
 
-function FolderGrid({ folders, onOpen, onRemove }: {
+function FolderGrid({ folders, onOpen, onRemove, onRename }: {
   folders: Array<{ id: string; name: string; created_at: string }>;
   onOpen: (id: string) => void;
   onRemove: (id: string) => void;
+  onRename: (id: string, name: string) => void;
 }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingId]);
+
+  const startEdit = (id: string, currentName: string) => {
+    setEditingId(id);
+    setEditName(currentName);
+  };
+
+  const saveEdit = () => {
+    if (!editingId) return;
+    const trimmed = editName.trim();
+    if (!trimmed) {
+      toast.error('Nome não pode ser vazio');
+      return;
+    }
+    onRename(editingId, trimmed);
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {folders.map(f => (
         <div
           key={f.id}
           className="glass-card p-5 hover:border-primary/30 transition-all cursor-pointer group"
-          onClick={() => onOpen(f.id)}
+          onClick={() => { if (editingId !== f.id) onOpen(f.id); }}
         >
           <div className="flex items-start justify-between mb-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
               <FolderOpen className="w-5 h-5 text-primary" />
             </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
-              className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); startEdit(f.id, f.name); }}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onRemove(f.id); }}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-          <h3 className="text-sm font-semibold text-foreground mb-0.5">{f.name}</h3>
+          {editingId === f.id ? (
+            <Input
+              ref={inputRef}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') saveEdit();
+                if (e.key === 'Escape') cancelEdit();
+              }}
+              onBlur={saveEdit}
+              onClick={(e) => e.stopPropagation()}
+              className="h-7 text-sm font-semibold mb-0.5"
+            />
+          ) : (
+            <h3 className="text-sm font-semibold text-foreground mb-0.5">{f.name}</h3>
+          )}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>{new Date(f.created_at).toLocaleDateString('pt-BR')}</span>
           </div>
@@ -110,7 +169,6 @@ function FolderContent({ folderId }: { folderId: string }) {
         <input ref={fileInputRef} type="file" accept="video/mp4,video/quicktime,.mov,.mp4,image/jpeg,image/png" multiple className="hidden" onChange={handleFileInput} />
       </div>
 
-      {/* Upload progress */}
       {uploads.length > 0 && (
         <div className="space-y-2">
           {uploads.map((u, i) => (
