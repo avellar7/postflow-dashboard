@@ -43,34 +43,49 @@ export type Database = {
       }
       instagram_accounts: {
         Row: {
+          access_token: string | null
+          connected_at: string | null
           created_at: string
           display_name: string | null
           id: string
+          instagram_user_id: string | null
           notes: string | null
+          permissions: Json | null
           status: Database["public"]["Enums"]["account_status"]
           tags: Json | null
+          token_type: string | null
           updated_at: string
           user_id: string
           username: string
         }
         Insert: {
+          access_token?: string | null
+          connected_at?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
+          instagram_user_id?: string | null
           notes?: string | null
+          permissions?: Json | null
           status?: Database["public"]["Enums"]["account_status"]
           tags?: Json | null
+          token_type?: string | null
           updated_at?: string
           user_id: string
           username: string
         }
         Update: {
+          access_token?: string | null
+          connected_at?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
+          instagram_user_id?: string | null
           notes?: string | null
+          permissions?: Json | null
           status?: Database["public"]["Enums"]["account_status"]
           tags?: Json | null
+          token_type?: string | null
           updated_at?: string
           user_id?: string
           username?: string

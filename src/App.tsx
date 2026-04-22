@@ -14,6 +14,7 @@ import BibliotecaPage from "./pages/BibliotecaPage";
 import AquecimentoPage from "./pages/AquecimentoPage";
 import FunilPage from "./pages/FunilPage";
 import ContasPage from "./pages/ContasPage";
+import AccountsCallbackPage from "./pages/AccountsCallbackPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/aquecimento" element={<Protected><AquecimentoPage /></Protected>} />
             <Route path="/funil" element={<Protected><FunilPage /></Protected>} />
             <Route path="/contas" element={<Protected><ContasPage /></Protected>} />
+            <Route path="/accounts/callback" element={<Protected><AccountsCallbackPage /></Protected>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
