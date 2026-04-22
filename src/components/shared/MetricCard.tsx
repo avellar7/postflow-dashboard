@@ -5,6 +5,7 @@ interface MetricCardProps {
   value: string | number;
   icon?: ReactNode;
   color?: 'primary' | 'success' | 'warning' | 'destructive' | 'muted';
+  description?: string;
 }
 
 const colorMap: Record<string, string> = {
