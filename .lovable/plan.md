@@ -1,49 +1,101 @@
 
 
-## Plano: Ajustar construção da URL OAuth do Instagram
+## Plano: Sistema de Temas de Cor
 
-### Problema
+### Arquitetura
 
-A URL gerada pela edge function `instagram-oauth-start` usa `https://www.instagram.com/oauth/authorize` com `URL.searchParams`, que produz uma URL diferente do padrão do app original funcional. Diferenças principais:
-- O parâmetro `next` interno usa URL absoluta em vez de relativa
-- `enable_fb_login=1` em vez de `0`
+O app ja usa CSS custom properties (HSL) em `:root` para todas as cores. A estrategia e criar classes CSS por tema (`[data-theme="red"]`, etc.) que sobrescrevem apenas as variaveis de accent/primary, mantendo backgrounds, cards e estrutura escura intactos.
 
-Esses parâmetros são controlados pelo Instagram/Meta internamente com base na URL de entrada, mas podemos ajustar a URL base e adicionar `enable_fb_login=0` explicitamente.
+### Arquivos novos
 
-### Alteração
+**1. `src/contexts/ThemeContext.tsx`**
 
-**Arquivo:** `supabase/functions/instagram-oauth-start/index.ts`
+Context + Provider que:
+- Armazena o tema ativo em state
+- Persiste em `localStorage` (chave `postflow-theme`)
+- Aplica `data-theme` no `document.documentElement`
+- Exporta `useTheme()` com `{ theme, setTheme }`
+- Temas: `blue | red | gray | purple | gold`
 
-Substituir a construção da URL (linhas 56-66) por montagem manual da query string para controle total do formato, e adicionar `enable_fb_login=0`:
+**2. `src/components/layout/ThemeSelector.tsx`**
 
-```typescript
-const scope = "instagram_business_basic,instagram_business_content_publish";
+Componente discreto com 5 circulos coloridos dentro de um `DropdownMenu`. Cada circulo mostra a cor primaria do tema. Clique aplica o tema instantaneamente. Posicionado na Topbar, entre o botao de agendamento e o avatar.
 
-const params = new URLSearchParams();
-params.set("enable_fb_login", "0");
-params.set("force_authentication", "1");
-params.set("client_id", clientId);
-params.set("redirect_uri", redirectUri);
-params.set("response_type", "code");
-params.set("scope", scope);
-params.set("state", state);
+### Arquivos editados
 
-const oauthUrl = `https://www.instagram.com/oauth/authorize?${params.toString()}`;
+**3. `src/index.css`** -- Adicionar blocos de tema
+
+Apos o `:root` existente (que vira o tema `blue` padrao), adicionar:
+
+```css
+[data-theme="red"] {
+  --primary: 0 65% 48%;
+  --accent: 0 65% 48%;
+  --ring: 0 65% 48%;
+  --sidebar-primary: 0 65% 48%;
+  --sidebar-ring: 0 65% 48%;
+}
+[data-theme="gray"] {
+  --primary: 220 10% 50%;
+  --accent: 220 10% 50%;
+  --ring: 220 10% 50%;
+  --sidebar-primary: 220 10% 50%;
+  --sidebar-ring: 220 10% 50%;
+}
+[data-theme="purple"] {
+  --primary: 270 60% 55%;
+  --accent: 270 60% 55%;
+  --ring: 270 60% 55%;
+  --sidebar-primary: 270 60% 55%;
+  --sidebar-ring: 270 60% 55%;
+}
+[data-theme="gold"] {
+  --primary: 40 70% 50%;
+  --accent: 40 70% 50%;
+  --ring: 40 70% 50%;
+  --sidebar-primary: 40 70% 50%;
+  --sidebar-ring: 40 70% 50%;
+  --primary-foreground: 0 0% 10%;
+  --accent-foreground: 0 0% 10%;
+  --sidebar-primary-foreground: 0 0% 10%;
+}
 ```
 
-Mudancas:
-1. `enable_fb_login=0` -- desabilita login via Facebook, igual ao app original
-2. `force_authentication=1` -- forca re-autenticacao, padrao do app original
-3. Scope usa virgula simples (ja estava correto)
-4. URL montada como string com `URLSearchParams.toString()` para formato limpo
+Tambem atualizar `.glow-blue` para usar `var(--primary)` em vez de hardcoded, e renomear para `.glow-primary`. Atualizar `.gradient-mesh` para usar `var(--primary)`.
 
-### Deploy
+**4. `src/App.tsx`** -- Envolver com `ThemeProvider`
 
-Redeployar `instagram-oauth-start` e testar via CURL para validar a URL gerada.
+Adicionar `<ThemeProvider>` dentro do `QueryClientProvider`.
+
+**5. `src/components/layout/Topbar.tsx`** -- Adicionar `ThemeSelector`
+
+Importar e renderizar `<ThemeSelector />` na area direita da topbar, entre o botao "Novo Agendamento" e o badge ADM.
+
+**6. Buscar e atualizar referencias a `glow-blue`** em componentes para usar `glow-primary`.
+
+### Variaveis afetadas por tema
+
+Apenas as variaveis de accent/destaque mudam:
+- `--primary`, `--accent`, `--ring`
+- `--sidebar-primary`, `--sidebar-ring`
+- `--primary-foreground` (apenas gold, que precisa texto escuro)
+
+Variaveis que NAO mudam (mantendo o dark mode):
+- `--background`, `--foreground`
+- `--card`, `--card-foreground`
+- `--secondary`, `--muted`, `--border`, `--input`
+- `--destructive`, `--success`, `--warning`, `--info`
+
+### Comportamento
+
+- Tema padrao: `blue` (identico ao visual atual)
+- Troca instantanea sem reload (CSS custom properties)
+- Persistencia em `localStorage`
+- Sem flicker: tema aplicado antes do render via script inline ou no Provider
 
 ### Sem mudancas
 
-- Nenhuma alteracao visual, layout ou identidade
-- Callback e persistencia no banco inalterados
-- `useInstagramConnect.ts` permanece igual
+- Nenhuma alteracao de layout, estrutura ou componentes
+- Nenhuma alteracao no backend
+- Nenhuma alteracao em paginas existentes
 
