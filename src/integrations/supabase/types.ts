@@ -41,6 +41,27 @@ export type Database = {
         }
         Relationships: []
       }
+      health_settings: {
+        Row: {
+          id: string
+          publish_cap: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          publish_cap?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          publish_cap?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       instagram_accounts: {
         Row: {
           access_token: string | null
@@ -281,6 +302,7 @@ export type Database = {
           caption_id: string | null
           created_at: string
           error_message: string | null
+          error_type: string | null
           id: string
           media_id: string | null
           media_name: string | null
@@ -299,6 +321,7 @@ export type Database = {
           caption_id?: string | null
           created_at?: string
           error_message?: string | null
+          error_type?: string | null
           id?: string
           media_id?: string | null
           media_name?: string | null
@@ -317,6 +340,7 @@ export type Database = {
           caption_id?: string | null
           created_at?: string
           error_message?: string | null
+          error_type?: string | null
           id?: string
           media_id?: string | null
           media_name?: string | null
