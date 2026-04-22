@@ -1,46 +1,67 @@
 
 
-## Plan: Add Anti-Detection, Metadata Profile, and Video Variations to Loop and Postar Pages
+## Plan: Tela de Login Mockada + Autenticação Local com Roles
 
-### What will be added
+### O que será criado
 
-Based on the reference screenshot, three new feature sections will be added to both the **Loop** and **Postar** pages:
+1. **Sistema de autenticação mockado** com contexto React, persistência em localStorage e estrutura de roles preparada para evolução futura.
 
-1. **Updated Effects section** (Loop page)
-   - Replace "Ajustes leves" with "Desfoque leve" (Filtro de privacidade)
-   - Add an active effects counter badge in the section header (e.g., "1" when one effect is on)
+2. **Tela de login premium** em `/login` com visual dark mode coerente com o app.
 
-2. **Anti-detecção IA** toggle
-   - A highlighted card (with a subtle primary border when active) containing a toggle for "Anti-detecção IA" with subtitle "Variação automática"
-   - When enabled, applies automatic visual variations to evade duplicate content detection
+3. **Proteção de rotas** — todas as páginas do dashboard redirecionam para `/login` se não houver sessão.
 
-3. **Perfil de metadata** selector
-   - Label: "Perfil de metadata" with subtitle "Como o vídeo se identifica para o Instagram"
-   - Four pill-style buttons: Auto (default selected), iPhone, Android, Desligado
-   - Only one can be selected at a time
+4. **Badge ADM** visível na Topbar quando o usuário logado tiver role `admin`.
 
-4. **Variações por vídeo** slider
-   - Label: "Variações por vídeo (alterna a cada ciclo)" with current value shown (e.g., "3x")
-   - Range slider from 1 to 5
-   - Helper text below: "Cada vídeo da pasta gera X versões diferentes; o sistema alterna entre elas a cada ciclo."
+5. **Logout funcional** no avatar da Topbar.
 
-### Where each feature goes
+---
 
-- **Loop page**: All four features added to the right column, inside or below the existing Effects card. The "Criar Loop" button text replaces "Iniciar Loop".
-- **Postar page**: Anti-detecção IA, Metadata Profile, and Variations slider added as a new "Configurações avançadas" card in the right column, between the Agendamento and Fila sections.
+### Arquivos novos
 
-### Files changed
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/types/auth.ts` | Tipos `UserRole` (`admin`, `member`, `viewer`), `MockUser`, `AuthState` |
+| `src/contexts/AuthContext.tsx` | Context + Provider com login/logout mockado, persistência em localStorage, usuário padrão admin |
+| `src/components/auth/ProtectedRoute.tsx` | Wrapper que redireciona para `/login` se não autenticado |
+| `src/pages/LoginPage.tsx` | Tela de login premium dark mode |
 
-| File | Change |
-|------|--------|
-| `src/pages/LoopPage.tsx` | Add `blur` to effects state, replace "Ajustes leves" with "Desfoque leve", add active-count badge to Effects header, add Anti-detecção IA toggle, Metadata profile selector, Variations slider, rename button to "Criar Loop" |
-| `src/pages/PostarPage.tsx` | Add new state for `antiDetection`, `metadataProfile`, `variations`. Add a new glass-card section with Anti-detecção IA, Metadata profile, and Variations slider |
+### Arquivos editados
 
-### Technical details
+| Arquivo | Mudança |
+|---------|---------|
+| `src/App.tsx` | Envolver com `AuthProvider`, adicionar rota `/login`, proteger rotas do dashboard com `ProtectedRoute` |
+| `src/components/layout/Topbar.tsx` | Mostrar badge "ADM" ao lado do avatar quando role=admin; adicionar dropdown ou botão de logout |
 
-- New state variables: `antiDetection: boolean`, `metadataProfile: 'auto' | 'iphone' | 'android' | 'off'`, `variations: number`
-- Effects counter computed via `Object.values(effects).filter(Boolean).length`
-- Metadata selector uses pill-button pattern already present in the codebase (similar to post mode selector)
-- Slider reuses the native range input with `accent-primary` styling already used for the interval slider
-- Anti-detecção card gets a `border-primary/50 bg-primary/5` highlight when active, matching the reference
+---
+
+### Detalhes técnicos
+
+**Tipos (auth.ts)**
+- `type UserRole = 'admin' \| 'member' \| 'viewer'`
+- `interface MockUser { id, name, email, role, avatar }`
+- Usuário padrão: `{ name: 'Administrador', email: 'admin@postflow.io', role: 'admin' }`
+
+**AuthContext**
+- Estado: `user: MockUser | null`, `isAuthenticated: boolean`
+- Funções: `login(email, password)` valida contra credenciais mockadas, salva em `localStorage('postflow_session')`; `logout()` limpa localStorage e redireciona para `/login`
+- No mount, verifica localStorage para restaurar sessão
+- Exporta hook `useAuth()`
+
+**ProtectedRoute**
+- Lê `useAuth()`, se não autenticado redireciona via `<Navigate to="/login" />`
+
+**LoginPage**
+- Layout centralizado com fundo gradient-mesh + grid-bg (mesmo do app)
+- Card glass com logo POSTFLOW, campos email e senha, botão "Entrar"
+- Credenciais mockadas exibidas como hint sutil abaixo do formulário
+- Animação de entrada suave
+- Se já autenticado, redireciona para `/`
+
+**Topbar**
+- Badge pill "ADM" com cor primária ao lado do avatar quando `user.role === 'admin'`
+- Avatar clicável abre dropdown com nome do usuário e botão "Sair"
+
+**Permissões**
+- Helper `hasPermission(role, action)` em auth.ts com mapa de permissões por role, pronto para uso futuro
+- Nesta fase apenas o admin existe e tem acesso total
 
