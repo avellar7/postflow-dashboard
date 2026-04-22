@@ -9,7 +9,7 @@ import { Caption } from '@/types';
 import { toast } from 'sonner';
 import {
   Upload, FolderOpen, Sparkles, Hash, Smile, Save,
-  Shuffle, Pencil, Trash2, Zap, Clock, Play, Video
+  Shuffle, Pencil, Trash2, Zap, Clock, Play, Video, ShieldCheck
 } from 'lucide-react';
 
 export default function PostarPage() {
