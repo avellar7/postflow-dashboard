@@ -1,38 +1,49 @@
 
 
-## Plano: Corrigir redirecionamento OAuth do Instagram
+## Plano: Ajustar construção da URL OAuth do Instagram
 
 ### Problema
 
-O preview do Lovable roda dentro de um iframe. Quando `window.location.href` é usado, a navegação acontece **dentro do iframe**, e o Instagram recusa a conexão (`X-Frame-Options: DENY`). Não há nenhum iframe explícito no código do app — o problema é o contexto de execução do preview.
+A URL gerada pela edge function `instagram-oauth-start` usa `https://www.instagram.com/oauth/authorize` com `URL.searchParams`, que produz uma URL diferente do padrão do app original funcional. Diferenças principais:
+- O parâmetro `next` interno usa URL absoluta em vez de relativa
+- `enable_fb_login=1` em vez de `0`
 
-### Solução
+Esses parâmetros são controlados pelo Instagram/Meta internamente com base na URL de entrada, mas podemos ajustar a URL base e adicionar `enable_fb_login=0` explicitamente.
 
-Alterar **apenas uma linha** em `src/hooks/useInstagramConnect.ts`:
+### Alteração
 
-Substituir:
+**Arquivo:** `supabase/functions/instagram-oauth-start/index.ts`
+
+Substituir a construção da URL (linhas 56-66) por montagem manual da query string para controle total do formato, e adicionar `enable_fb_login=0`:
+
 ```typescript
-window.location.href = data.url;
+const scope = "instagram_business_basic,instagram_business_content_publish";
+
+const params = new URLSearchParams();
+params.set("enable_fb_login", "0");
+params.set("force_authentication", "1");
+params.set("client_id", clientId);
+params.set("redirect_uri", redirectUri);
+params.set("response_type", "code");
+params.set("scope", scope);
+params.set("state", state);
+
+const oauthUrl = `https://www.instagram.com/oauth/authorize?${params.toString()}`;
 ```
 
-Por:
-```typescript
-window.open(data.url, '_blank');
-```
+Mudancas:
+1. `enable_fb_login=0` -- desabilita login via Facebook, igual ao app original
+2. `force_authentication=1` -- forca re-autenticacao, padrao do app original
+3. Scope usa virgula simples (ja estava correto)
+4. URL montada como string com `URLSearchParams.toString()` para formato limpo
 
-Isso abre a URL OAuth do Instagram em uma **nova aba real do navegador**, fora do iframe do preview. O fluxo de callback (`/accounts/callback`) continua funcionando normalmente porque o `redirect_uri` cadastrado na Meta aponta para o domínio publicado (`autopostflow.lovable.app`), que não roda em iframe.
+### Deploy
 
-### Alternativa (se preferir sem popup)
+Redeployar `instagram-oauth-start` e testar via CURL para validar a URL gerada.
 
-Usar `window.top.location.href = data.url` para navegar a janela principal. Porém, isso só funciona se o iframe e o parent estiverem no mesmo domínio — caso contrário, o browser bloqueia por segurança cross-origin. `window.open('...', '_blank')` é a abordagem mais segura e universal.
+### Sem mudancas
 
-### Arquivos editados
-
-- `src/hooks/useInstagramConnect.ts` — uma linha alterada
-
-### Sem mudanças
-
-- Nenhuma alteração visual, layout, sidebar, topbar ou identidade
-- Edge functions permanecem iguais
-- Callback e persistência no banco inalterados
+- Nenhuma alteracao visual, layout ou identidade
+- Callback e persistencia no banco inalterados
+- `useInstagramConnect.ts` permanece igual
 
