@@ -2,11 +2,19 @@ import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
-import { mockAccounts, mockFolders } from '@/data/mock';
+import { useAccounts } from '@/hooks/useAccounts';
+import { useFolders } from '@/hooks/useFolders';
+import { useLoops } from '@/hooks/useLoops';
 import { toast } from 'sonner';
-import { RefreshCw, Infinity, Upload, FlipHorizontal, Palette, ZoomIn, SlidersHorizontal, ShieldCheck, Smartphone, EyeOff } from 'lucide-react';
+import { RefreshCw, Infinity, Upload, FlipHorizontal, Palette, ZoomIn, SlidersHorizontal, ShieldCheck, EyeOff } from 'lucide-react';
 
 export default function LoopPage() {
+  const { accounts } = useAccounts();
+  const { folders } = useFolders();
+  const { create: createLoop } = useLoops();
+
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [selectedFolderId, setSelectedFolderId] = useState('');
   const [infiniteLoop, setInfiniteLoop] = useState(false);
   const [cycles, setCycles] = useState(3);
   const [interval, setInterval_] = useState(30);
@@ -16,6 +24,17 @@ export default function LoopPage() {
   const [variations, setVariations] = useState(3);
 
   const activeEffectsCount = Object.values(effects).filter(Boolean).length;
+
+  const handleCreateLoop = () => {
+    createLoop.mutate({
+      account_id: selectedAccountId || null,
+      folder_id: selectedFolderId || null,
+      is_infinite: infiniteLoop,
+      cycles: infiniteLoop ? null : cycles,
+      interval_minutes: interval,
+      effects: effects as any,
+    });
+  };
 
   return (
     <DashboardLayout>
@@ -30,15 +49,19 @@ export default function LoopPage() {
           <div className="glass-card p-6 space-y-5">
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">Conta</label>
-              <select className="w-full bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground">
-                {mockAccounts.map(a => <option key={a.id}>{a.username}</option>)}
+              <select className="w-full bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground"
+                value={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)}>
+                <option value="">Selecione...</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.username}</option>)}
               </select>
             </div>
 
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">Pasta da Biblioteca</label>
-              <select className="w-full bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground">
-                {mockFolders.map(f => <option key={f.id}>{f.name} ({f.itemCount} itens)</option>)}
+              <select className="w-full bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground"
+                value={selectedFolderId} onChange={e => setSelectedFolderId(e.target.value)}>
+                <option value="">Selecione...</option>
+                {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
 
@@ -74,7 +97,7 @@ export default function LoopPage() {
             </div>
 
             <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg shadow-primary/20"
-              onClick={() => toast.success('Loop configurado (mockado)')}>
+              onClick={handleCreateLoop} disabled={createLoop.isPending}>
               <RefreshCw className="w-4 h-4" /> Criar Loop
             </Button>
           </div>

@@ -4,16 +4,17 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { mockCaptions, mockQueueItems } from '@/data/mock';
-import { Caption } from '@/types';
+import { useCaptions } from '@/hooks/useCaptions';
+import { useQueueItems } from '@/hooks/useQueueItems';
 import { toast } from 'sonner';
 import {
   Upload, FolderOpen, Sparkles, Hash, Smile, Save,
-  Shuffle, Pencil, Trash2, Zap, Clock, Play, Video, ShieldCheck
+  Shuffle, Pencil, Trash2, Zap, Clock, Play, Video, ShieldCheck, Loader2
 } from 'lucide-react';
 
 export default function PostarPage() {
-  const [captions, setCaptions] = useState<Caption[]>(mockCaptions);
+  const { captions, isLoading: captionsLoading, create: createCaption, remove: removeCaption } = useCaptions();
+  const { items: queueItems, isLoading: queueLoading } = useQueueItems();
   const [captionInput, setCaptionInput] = useState('');
   const [mode, setMode] = useState<'now' | 'schedule'>('now');
   const [postMode, setPostMode] = useState<'sequential' | 'burst'>('sequential');
@@ -29,15 +30,12 @@ export default function PostarPage() {
 
   const handleSaveCaption = () => {
     if (!captionInput.trim()) return;
-    const newCaption: Caption = { id: Date.now().toString(), text: captionInput, createdAt: new Date().toISOString().slice(0, 10) };
-    setCaptions([newCaption, ...captions]);
+    createCaption.mutate({ content: captionInput });
     setCaptionInput('');
-    toast.success('Legenda salva!');
   };
 
   const handleDeleteCaption = (id: string) => {
-    setCaptions(captions.filter(c => c.id !== id));
-    toast('Legenda removida');
+    removeCaption.mutate(id);
   };
 
   return (
@@ -102,12 +100,14 @@ export default function PostarPage() {
               <Button size="sm" variant="outline" className="text-xs border-border/50 text-foreground hover:bg-secondary gap-1.5" onClick={() => setCaptionInput(prev => prev + ' 🚀🔥✨')}>
                 <Smile className="w-3 h-3" /> Emojis
               </Button>
-              <Button size="sm" className="text-xs bg-primary/10 text-primary hover:bg-primary/20 gap-1.5 ml-auto" onClick={handleSaveCaption}>
+              <Button size="sm" className="text-xs bg-primary/10 text-primary hover:bg-primary/20 gap-1.5 ml-auto" onClick={handleSaveCaption} disabled={createCaption.isPending}>
                 <Save className="w-3 h-3" /> Salvar
               </Button>
             </div>
 
-            {captions.length > 0 && (
+            {captionsLoading ? (
+              <div className="mt-5 flex justify-center"><Loader2 className="w-5 h-5 text-muted-foreground animate-spin" /></div>
+            ) : captions.length > 0 && (
               <div className="mt-5 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted-foreground">Legendas salvas</p>
@@ -117,7 +117,7 @@ export default function PostarPage() {
                 </div>
                 {captions.map(c => (
                   <div key={c.id} className="flex items-start gap-2 p-3 rounded-lg bg-secondary/30 border border-border/30 group">
-                    <p className="flex-1 text-xs text-foreground/80 leading-relaxed">{c.text}</p>
+                    <p className="flex-1 text-xs text-foreground/80 leading-relaxed">{c.content}</p>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"><Pencil className="w-3 h-3" /></button>
                       <button className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteCaption(c.id)}><Trash2 className="w-3 h-3" /></button>
@@ -259,22 +259,28 @@ export default function PostarPage() {
               <Play className="w-4 h-4 text-primary" /> Fila de postagem
             </h2>
 
-            <div className="space-y-2">
-              {mockQueueItems.slice(0, 3).map(item => (
-                <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/30">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                      <Video className="w-3.5 h-3.5 text-muted-foreground" />
+            {queueLoading ? (
+              <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 text-muted-foreground animate-spin" /></div>
+            ) : queueItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Nenhum item na fila</p>
+            ) : (
+              <div className="space-y-2">
+                {queueItems.slice(0, 3).map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/30">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                        <Video className="w-3.5 h-3.5 text-muted-foreground" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">{item.media_name || 'Sem nome'}</p>
+                        <p className="text-[10px] text-muted-foreground">{item.account_username || '—'}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground truncate">{item.mediaName}</p>
-                      <p className="text-[10px] text-muted-foreground">{item.accountUsername}</p>
-                    </div>
+                    <StatusBadge status={item.status} />
                   </div>
-                  <StatusBadge status={item.status} />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

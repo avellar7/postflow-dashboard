@@ -3,12 +3,28 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
-import { mockAccounts, mockStoryHistory } from '@/data/mock';
-import { toast } from 'sonner';
-import { Camera, Upload, Link2, Link2Off, Type, Trash2 } from 'lucide-react';
+import { useAccounts } from '@/hooks/useAccounts';
+import { useStories } from '@/hooks/useStories';
+import { Camera, Upload, Link2, Link2Off, Type, Trash2, Loader2 } from 'lucide-react';
 
 export default function StoriesPage() {
-  const [linkStrategy, setLinkStrategy] = useState<'none' | 'bio' | 'cta'>('none');
+  const { accounts } = useAccounts();
+  const { stories, isLoading, create: createStory, remove: removeStory } = useStories();
+  const [linkStrategy, setLinkStrategy] = useState<'none' | 'link_bio' | 'text_cta'>('none');
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+
+  const toggleAccount = (id: string) => {
+    setSelectedAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  };
+
+  const handlePublish = () => {
+    selectedAccounts.forEach(accountId => {
+      createStory.mutate({ account_id: accountId, strategy: linkStrategy, status: 'posted' });
+    });
+    if (selectedAccounts.length === 0) {
+      createStory.mutate({ strategy: linkStrategy, status: 'posted' });
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -36,8 +52,8 @@ export default function StoriesPage() {
             <div className="space-y-2">
               {[
                 { key: 'none' as const, label: 'Sem link', icon: Link2Off, desc: 'Story sem ação de link' },
-                { key: 'bio' as const, label: 'Link na bio', icon: Link2, desc: 'Direciona para o link da bio' },
-                { key: 'cta' as const, label: 'CTA textual', icon: Type, desc: 'Texto chamando para ação' },
+                { key: 'link_bio' as const, label: 'Link na bio', icon: Link2, desc: 'Direciona para o link da bio' },
+                { key: 'text_cta' as const, label: 'CTA textual', icon: Type, desc: 'Texto chamando para ação' },
               ].map(opt => (
                 <button
                   key={opt.key}
@@ -57,18 +73,21 @@ export default function StoriesPage() {
           <div className="glass-card p-6">
             <h2 className="text-xs font-semibold text-muted-foreground mb-3">Selecionar contas</h2>
             <div className="space-y-2">
-              {mockAccounts.filter(a => a.status === 'active').map(a => (
+              {accounts.filter(a => a.status === 'active').map(a => (
                 <label key={a.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/30 cursor-pointer">
-                  <input type="checkbox" className="rounded accent-primary" />
+                  <input type="checkbox" className="rounded accent-primary" checked={selectedAccounts.includes(a.id)} onChange={() => toggleAccount(a.id)} />
                   <span className="text-sm text-foreground">{a.username}</span>
                   <StatusBadge status={a.status} />
                 </label>
               ))}
+              {accounts.filter(a => a.status === 'active').length === 0 && (
+                <p className="text-xs text-muted-foreground">Nenhuma conta ativa encontrada.</p>
+              )}
             </div>
           </div>
 
           <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg shadow-primary/20"
-            onClick={() => toast.success('Story publicado (mockado)')}>
+            onClick={handlePublish} disabled={createStory.isPending}>
             <Camera className="w-4 h-4" /> Publicar Story
           </Button>
         </div>
@@ -81,17 +100,23 @@ export default function StoriesPage() {
             </Button>
           </div>
 
-          <div className="space-y-2">
-            {mockStoryHistory.map(s => (
-              <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/30">
-                <div>
-                  <p className="text-xs font-medium text-foreground">{s.mediaName}</p>
-                  <p className="text-[10px] text-muted-foreground">{s.accountUsername} • {new Date(s.publishedAt).toLocaleString('pt-BR')}</p>
+          {isLoading ? (
+            <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 text-muted-foreground animate-spin" /></div>
+          ) : stories.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">Nenhum story publicado ainda.</p>
+          ) : (
+            <div className="space-y-2">
+              {stories.map(s => (
+                <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/30">
+                  <div>
+                    <p className="text-xs font-medium text-foreground">Story #{s.id.slice(0, 6)}</p>
+                    <p className="text-[10px] text-muted-foreground">{new Date(s.created_at).toLocaleString('pt-BR')}</p>
+                  </div>
+                  <StatusBadge status={s.status === 'posted' ? 'completed' : s.status === 'failed' ? 'error' : 'pending'} />
                 </div>
-                <StatusBadge status={s.status} />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>
