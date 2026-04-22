@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Zap, LogIn, Eye, EyeOff } from 'lucide-react';
+import { Zap, LogIn, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,25 +8,38 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, loading, login, signup } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
 
+  if (loading) return null;
   if (isAuthenticated) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    const success = await login(email, password);
-    setLoading(false);
-    if (success) {
-      toast.success('Login realizado com sucesso');
-      navigate('/');
+    setSubmitting(true);
+
+    if (isSignup) {
+      const success = await signup(email, password);
+      setSubmitting(false);
+      if (success) {
+        toast.success('Conta criada! Verifique seu e-mail para confirmar.');
+      } else {
+        toast.error('Erro ao criar conta. Verifique os dados.');
+      }
     } else {
-      toast.error('Credenciais inválidas');
+      const success = await login(email, password);
+      setSubmitting(false);
+      if (success) {
+        toast.success('Login realizado com sucesso');
+        navigate('/');
+      } else {
+        toast.error('Credenciais inválidas');
+      }
     }
   };
 
@@ -47,8 +60,12 @@ export default function LoginPage() {
         {/* Card */}
         <div className="glass-card p-6 space-y-5">
           <div className="text-center">
-            <h2 className="text-lg font-semibold text-foreground">Entrar na plataforma</h2>
-            <p className="text-xs text-muted-foreground mt-1">Acesse seu painel de automação</p>
+            <h2 className="text-lg font-semibold text-foreground">
+              {isSignup ? 'Criar conta' : 'Entrar na plataforma'}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isSignup ? 'Preencha seus dados para começar' : 'Acesse seu painel de automação'}
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -57,7 +74,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@postflow.io"
+                placeholder="seu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-secondary/50 border-border/50 h-10 text-sm"
@@ -76,6 +93,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-secondary/50 border-border/50 h-10 text-sm pr-10"
                   required
+                  minLength={6}
                 />
                 <button
                   type="button"
@@ -89,18 +107,21 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              disabled={loading}
+              disabled={submitting}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-lg shadow-primary/20 gap-2"
             >
-              <LogIn className="w-4 h-4" />
-              {loading ? 'Entrando…' : 'Entrar'}
+              {isSignup ? <UserPlus className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
+              {submitting ? (isSignup ? 'Criando…' : 'Entrando…') : (isSignup ? 'Criar conta' : 'Entrar')}
             </Button>
           </form>
         </div>
 
-        {/* Hint */}
-        <p className="text-center text-[11px] text-muted-foreground/50 mt-4 font-mono">
-          demo: admin@postflow.io / qualquer senha
+        {/* Toggle */}
+        <p className="text-center text-xs text-muted-foreground mt-4">
+          {isSignup ? 'Já tem conta?' : 'Não tem conta?'}{' '}
+          <button onClick={() => setIsSignup(!isSignup)} className="text-primary hover:underline font-medium">
+            {isSignup ? 'Entrar' : 'Criar conta'}
+          </button>
         </p>
       </div>
     </div>
