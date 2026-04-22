@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { ThemeSelector } from '@/components/layout/ThemeSelector';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,8 @@ export function Topbar() {
           <Plus className="w-3.5 h-3.5" />
           Novo Agendamento
         </Button>
+
+        <ThemeSelector />
 
         {user?.role === 'admin' && (
           <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30">
