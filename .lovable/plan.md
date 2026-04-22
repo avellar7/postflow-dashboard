@@ -1,171 +1,114 @@
 
 
-## Plano: FASE 2 — Backend Real com Lovable Cloud
+## Plano: Integração OAuth com Instagram/Meta (Fase inicial)
 
-Este plano conecta o app POSTFLOW existente ao Lovable Cloud, mantendo a interface 100% intacta. Apenas a camada de dados e autenticação será substituída.
-
----
-
-### 1. Habilitar Lovable Cloud e instalar Supabase client
-
-- Adicionar `@supabase/supabase-js` ao projeto
-- Criar `src/integrations/supabase/client.ts` com o client configurado
-- Criar `src/integrations/supabase/types.ts` com os tipos gerados
+Conectar contas profissionais do Instagram via OAuth oficial da Meta, mantendo a interface atual 100% intacta. Sem publicação, webhooks ou refresh avançado nesta fase.
 
 ---
 
-### 2. Criar tabelas via migrations
+### 1. Secrets (Lovable Cloud)
 
-10 tabelas, todas com RLS habilitado:
+Serão solicitados via `add_secret` antes da implementação:
+- `INSTAGRAM_APP_ID`
+- `INSTAGRAM_APP_SECRET`
+- `INSTAGRAM_REDIRECT_URI` (valor: `https://autopostflow.lovable.app/accounts/callback`)
 
-| Tabela | Campos principais |
-|--------|-------------------|
-| `profiles` | id (FK auth.users), email, name, avatar_url, created_at, updated_at |
-| `user_roles` | id, user_id (FK auth.users), role (enum: admin/member/viewer) |
-| `instagram_accounts` | id, user_id, username, display_name, status (enum), tags (jsonb), notes, timestamps |
-| `library_folders` | id, user_id, name, description, timestamps |
-| `media_items` | id, user_id, folder_id (FK), title, file_name, file_url, media_type (enum), thumbnail_url, timestamps |
-| `saved_captions` | id, user_id, title, content, is_random, timestamps |
-| `queue_items` | id, user_id, account_id (FK), media_id (FK), caption_id (FK), mode, post_mode, status (enum), scheduled_for, timestamps |
-| `loops` | id, user_id, account_id (FK), folder_id (FK), is_infinite, cycles, interval_minutes, cover_url, effects (jsonb), is_active, timestamps |
-| `stories` | id, user_id, account_id (FK), media_id (FK), strategy (enum), status (enum), timestamps |
-| `warmup_accounts` | id, user_id, account_id (FK), daily_target, interval_minutes, current_status (enum), timestamps |
-| `funnels` | id, user_id, name, description, timestamps |
-
-Trigger automático: ao criar um usuário em auth.users, criar automaticamente um registro em `profiles`.
-
-Roles separados na tabela `user_roles` com função `has_role()` SECURITY DEFINER para evitar recursão RLS.
+App Secret permanece apenas na edge function — nunca exposto ao cliente.
 
 ---
 
-### 3. RLS Policies
+### 2. Ajustes no banco (migration mínima)
 
-Regra base para todas as tabelas de dados:
-- SELECT/INSERT/UPDATE/DELETE: `user_id = auth.uid()`
+Adicionar colunas à tabela `instagram_accounts` já existente:
 
-Para `profiles`:
-- SELECT próprio perfil: `id = auth.uid()`
-- UPDATE próprio perfil: `id = auth.uid()`
+| Coluna | Tipo | Nullable |
+|---|---|---|
+| `instagram_user_id` | text | yes |
+| `access_token` | text | yes |
+| `token_type` | text | yes |
+| `permissions` | jsonb | yes |
+| `connected_at` | timestamptz | yes |
 
-Para `user_roles`:
-- SELECT: `user_id = auth.uid()`
-- INSERT/UPDATE/DELETE: apenas admin via `has_role(auth.uid(), 'admin')`
-
----
-
-### 4. Autenticação real
-
-**Arquivo: `src/contexts/AuthContext.tsx`** — reescrever internamente (sem mudar a interface do contexto):
-- Substituir mock por `supabase.auth.signInWithPassword()`
-- `onAuthStateChange` para gerenciar sessão
-- `supabase.auth.signOut()` no logout
-- Carregar perfil + role do banco após login
-- Manter o mesmo `AuthContextType` para não quebrar nenhum componente
-
-**Arquivo: `src/pages/LoginPage.tsx`** — manter exatamente igual visualmente:
-- Apenas trocar o `login()` para usar o auth real
-- Remover hint de credenciais mock
-
-**Arquivo: `src/components/auth/ProtectedRoute.tsx`** — manter lógica, apenas usar sessão real
-
-**Arquivo: `src/components/layout/Topbar.tsx`** — sem alterações visuais, badge ADM alimentado pelo role real
+Índice único `(user_id, instagram_user_id)` para fazer upsert e evitar duplicatas. RLS já existente (`user_id = auth.uid()`) continua válido.
 
 ---
 
-### 5. Camada de dados (hooks React Query)
+### 3. Edge functions
 
-Criar hooks organizados em `src/hooks/` usando `@tanstack/react-query` + Supabase client:
+**`supabase/functions/instagram-oauth-start/index.ts`**
+- Recebe request autenticado do usuário
+- Monta URL OAuth: `https://www.instagram.com/oauth/authorize` com `client_id`, `redirect_uri`, `response_type=code`, `scope=instagram_business_basic,instagram_business_content_publish`, e um `state` aleatório (user_id assinado)
+- Retorna `{ url }` para o frontend redirecionar
 
-| Hook | Tabela | Operações |
-|------|--------|-----------|
-| `useAccounts` | instagram_accounts | list, create, update, delete |
-| `useFolders` | library_folders | list, create, update, delete |
-| `useCaptions` | saved_captions | list, create, update, delete |
-| `useQueueItems` | queue_items | list, create, update, delete |
-| `useLoops` | loops | list, create, update, delete |
-| `useStories` | stories | list, create, delete |
-| `useWarmupAccounts` | warmup_accounts | list, create, update, delete |
-| `useFunnels` | funnels | list, create, update, delete |
+**`supabase/functions/instagram-oauth-callback/index.ts`**
+- Recebe `{ code }` do frontend (rota `/accounts/callback`)
+- Valida JWT do usuário (verify_jwt = true)
+- Troca `code` por short-lived token em `https://api.instagram.com/oauth/access_token` (POST form-urlencoded com `client_id`, `client_secret`, `grant_type=authorization_code`, `redirect_uri`, `code`)
+- Troca short-lived por long-lived token em `https://graph.instagram.com/access_token?grant_type=ig_exchange_token`
+- Busca dados da conta em `https://graph.instagram.com/v21.0/me?fields=id,username,account_type`
+- Upsert em `instagram_accounts` (chave `user_id + instagram_user_id`): `username`, `instagram_user_id`, `access_token`, `token_type='bearer'`, `permissions`, `connected_at=now()`, `status='active'`
+- Retorna `{ success, username }`
 
-Cada hook retorna `{ data, isLoading, error }` + mutations com `toast` de sucesso/erro.
-
----
-
-### 6. Conectar páginas ao backend
-
-Cada página será atualizada para usar os hooks reais em vez dos mocks:
-
-| Página | Mudança |
-|--------|---------|
-| `PostarPage` | `useCaptions` para CRUD de legendas; `useQueueItems` para preview da fila |
-| `LoopPage` | `useLoops` para criar/listar; `useAccounts` e `useFolders` para selects |
-| `StoriesPage` | `useStories` para criar/listar; `useAccounts` para selecionar contas |
-| `FilaPage` | `useQueueItems` para listar/remover/atualizar status |
-| `SaudePage` | Queries derivadas de `useQueueItems` e `useAccounts` para métricas reais |
-| `BibliotecaPage` | `useFolders` para CRUD de pastas |
-| `AquecimentoPage` | `useWarmupAccounts` para listar/criar/remover |
-| `FunilPage` | `useFunnels` para CRUD |
-| `ContasPage` | `useAccounts` para CRUD |
-
-Cada página mantém loading states, empty states e toasts já existentes — apenas a fonte de dados muda.
+Tratamento de erro com mensagens claras para cada etapa (code inválido, token falhou, fetch perfil falhou, erro ao salvar).
 
 ---
 
-### 7. Saúde das Contas (dados derivados)
+### 4. Frontend
 
-A tela Saúde calculará métricas a partir de dados reais:
-- Total/pendentes/processando/concluídos/falhados: contagem de `queue_items` por status
-- Contas em quarentena/warming: contagem de `instagram_accounts` por status
-- Taxa de sucesso: `completed / (completed + failed) * 100`
-- Fallback para 0 quando não houver dados
+**`src/pages/AccountsCallbackPage.tsx`** (nova)
+- Lê `code` e `error` da URL
+- Se `error`: mostra estado de erro com botão "Voltar para Contas"
+- Se `code`: loading elegante (glass-card centralizado com spinner + texto "Conectando sua conta do Instagram...")
+- Invoca edge function `instagram-oauth-callback` com `{ code }`
+- Sucesso: `toast.success('Conta @username conectada!')` e `navigate('/contas')`
+- Erro: estado de erro com mensagem e botão voltar
+
+**`src/App.tsx`**
+- Adicionar rota `<Route path="/accounts/callback" element={<Protected><AccountsCallbackPage /></Protected>} />`
+
+**`src/pages/ContasPage.tsx`** (mudança mínima, sem alterar layout)
+- Substituir o input "username manual" + botão "Adicionar" pelo botão **"+ Instagram"** que dispara o fluxo OAuth. O card glass que contém o input permanece com o mesmo visual; apenas troca-se o conteúdo interno por uma call-to-action coerente (ícone Instagram + texto "Conectar conta profissional do Instagram via Meta").
+- No card de cada conta, exibir `connected_at` formatado como "Conectada em dd/mm/yyyy" quando presente, e um pequeno badge "Conectada" quando houver `access_token`. Mantém o `StatusBadge` e layout atuais.
+- `remove.mutate(id)` continua igual (apenas deleta registro local, sem revogar na Meta).
+
+**`src/hooks/useInstagramConnect.ts`** (novo)
+- `startConnect()`: invoca edge function `instagram-oauth-start`, recebe `url`, faz `window.location.href = url`
+- `handleCallback(code)`: invoca `instagram-oauth-callback`, retorna resultado
+- Estados `isConnecting` / `isProcessing` com toasts apropriados
 
 ---
 
-### 8. Seed inicial / Admin
-
-- Após criar conta via signup (email + senha), inserir manualmente o role `admin` na tabela `user_roles` via Cloud UI
-- Instruções claras serão fornecidas ao final da implementação
-- Alternativa: criar uma migration de seed que insere o role admin para o primeiro usuário
-
----
-
-### 9. Storage (preparado, não implementado)
-
-- Criar bucket `media` no Supabase Storage com policy `user_id = auth.uid()`
-- Não conectar uploads nesta fase — apenas preparar a infraestrutura
-- Campos `file_url`, `thumbnail_url`, `cover_url`, `avatar_url` permanecem nullable
-
----
-
-### Arquivos criados/editados
+### 5. Arquivos criados/editados
 
 **Novos:**
-- `src/integrations/supabase/client.ts`
-- `src/integrations/supabase/types.ts`
-- `src/hooks/useAccounts.ts`
-- `src/hooks/useCaptions.ts`
-- `src/hooks/useQueueItems.ts`
-- `src/hooks/useLoops.ts`
-- `src/hooks/useStories.ts`
-- `src/hooks/useWarmupAccounts.ts`
-- `src/hooks/useFolders.ts`
-- `src/hooks/useFunnels.ts`
-- Migrations para todas as tabelas + RLS + trigger
+- `supabase/functions/instagram-oauth-start/index.ts`
+- `supabase/functions/instagram-oauth-callback/index.ts`
+- `src/pages/AccountsCallbackPage.tsx`
+- `src/hooks/useInstagramConnect.ts`
+- Migration para adicionar colunas
 
-**Editados (apenas lógica interna, zero mudança visual):**
-- `src/contexts/AuthContext.tsx`
-- `src/types/auth.ts`
-- `src/pages/PostarPage.tsx`
-- `src/pages/LoopPage.tsx`
-- `src/pages/StoriesPage.tsx`
-- `src/pages/FilaPage.tsx`
-- `src/pages/SaudePage.tsx`
-- `src/pages/BibliotecaPage.tsx`
-- `src/pages/AquecimentoPage.tsx`
-- `src/pages/FunilPage.tsx`
-- `src/pages/ContasPage.tsx`
-- `src/pages/LoginPage.tsx`
+**Editados (mudanças mínimas):**
+- `src/App.tsx` — adicionar rota callback
+- `src/pages/ContasPage.tsx` — trocar input manual por botão OAuth, exibir `connected_at`
+- `src/integrations/supabase/types.ts` — regenerado automaticamente
 
-**Removido após migração:**
-- `src/data/mock.ts` (dados mock não mais necessários)
+---
+
+### 6. Segurança
+
+- Edge functions validam JWT (usuário autenticado obrigatório)
+- App Secret só existe no ambiente da edge function
+- Conta salva com `user_id = auth.uid()` e protegida por RLS existente
+- `state` no OAuth contém user_id para prevenir CSRF / account mix-up
+- Token armazenado apenas no backend (coluna `access_token`), nunca retornado ao cliente em listagens (o hook `useAccounts` continua com `select('*')` — aceitável nesta fase pois RLS garante isolamento; pode ser refinado depois com uma view pública)
+
+---
+
+### 7. Fora de escopo (confirmado)
+
+- Publicação real de posts/stories
+- Webhooks
+- Refresh automático de token (long-lived token já dura 60 dias)
+- Revogação na Meta ao remover
+- Sincronização de insights
 
