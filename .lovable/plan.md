@@ -1,79 +1,56 @@
 
 
-## Plano: Auditoria tecnica completa do POSTFLOW — correcoes
+## Plano: Corrigir fluxo OAuth do Instagram
 
-### Resumo da auditoria
+### Causa raiz
 
-Apos revisar todos os arquivos, hooks, paginas, tipos e banco, o app esta em bom estado geral. A maioria dos fluxos CRUD esta corretamente conectada ao backend com RLS, toasts e loading states. Seguem os problemas encontrados e as correcoes necessarias:
-
----
-
-### Problemas encontrados
-
-| # | Area | Problema | Severidade |
-|---|------|----------|------------|
-| 1 | Aquecimento | `useWarmupAccounts` faz join `*, instagram_accounts(username)` mas o resultado e acessado como `(w as any).instagram_accounts?.username` — funciona mas depende de cast unsafe. Se o join falhar silenciosamente, mostra "Conta" generico | Baixa |
-| 2 | LoopPage | Console warning: "Function components cannot be given refs" — nao e um bug funcional, mas polui o console | Baixa |
-| 3 | PostarPage | `handleStartAutomation` casta `as any` ao chamar `createQueueItem.mutate` — funciona mas perde type safety | Baixa |
-| 4 | Stories | Botao "Publicar Story" nao valida se ha midia selecionada — permite publicar story vazio | Media |
-| 5 | Stories | Historico nao mostra botao de remover individual por story (so "Limpar tudo") | Baixa |
-| 6 | Saude | `StatusBadge` recebe `status="quarantine"` mas `StatusBadge` nao tem mapeamento para `"quarantined"` (o valor real do enum no banco) — pode mostrar texto cru | Media |
-| 7 | Fila | Nao ha botao para marcar item como "failed" — so pode ir de pending para processing e de processing para completed | Baixa |
-| 8 | Captions | Botao "Gerar com IA" e mockado — coloca texto fixo, nao gera nada real | Baixa (documentado) |
-| 9 | LoopPage | Nao mostra lista de loops ja criados — so permite criar novos | Media |
-| 10 | Funil | Nao ha edicao de nome de funil — so criar e deletar | Baixa |
+A tabela `instagram_accounts` nao tem constraint unica em `(user_id, instagram_user_id)`. O upsert com `onConflict: "user_id,instagram_user_id"` falha com erro Postgres `42P10`. Alem disso, o hook abre nova aba e o frontend nao extrai a mensagem real de erro da edge function.
 
 ---
 
-### Correcoes a implementar
+### 1. Migration: adicionar unique constraint
 
-**1. StoriesPage — validacao antes de publicar**
-
-Adicionar validacao em `handlePublish`:
-- Se `linkStrategy === 'link_bio'` e `linkUrl` vazio, mostrar toast de erro
-- Se `linkStrategy === 'text_cta'` e `ctaText` vazio, mostrar toast de erro
-- Adicionar botao de remover individual em cada story do historico
-
-**2. StatusBadge — adicionar mapeamento "quarantined"**
-
-Adicionar ao `statusMap`:
+```sql
+ALTER TABLE public.instagram_accounts
+  ADD CONSTRAINT instagram_accounts_user_id_ig_user_id_key
+  UNIQUE (user_id, instagram_user_id);
 ```
-quarantined: { label: 'Quarentena', variant: 'destructive' }
-```
-Assim tanto `quarantine` quanto `quarantined` funcionam.
-
-**3. LoopPage — mostrar lista de loops criados**
-
-Adicionar secao abaixo do formulario com os loops ja criados (usando `useLoops().loops`), com botao de remover. Segue o mesmo padrao visual das outras paginas (grid de cards glass).
-
-**4. FunilPage — adicionar edicao de nome**
-
-Adicionar edicao inline de nome (mesmo padrao da BibliotecaPage: icone Pencil, input inline, Enter/Escape/blur). Requer adicionar mutation `update` ao `useFunnels` hook.
-
-**5. AquecimentoPage — melhorar display do username**
-
-Remover o cast `(w as any)` e tipar corretamente o retorno do join. Se o join falhar, usar fallback baseado em `account_id`.
-
-**6. PostarPage — remover cast `as any`**
-
-Ajustar o tipo do input do `createQueueItem.mutate` para aceitar `processing_options` corretamente, ou manter o cast com um comentario explicativo.
 
 ---
 
-### Arquivos editados
+### 2. `src/hooks/useInstagramConnect.ts`
+
+- Trocar `window.open(data.url, '_blank')` por `window.location.href = data.url`
+- No `handleCallback`, ao receber erro do `supabase.functions.invoke`, tentar extrair `data?.error` ou `error?.message` e retornar a mensagem especifica em vez do erro generico
+
+---
+
+### 3. Edge function `instagram-oauth-callback/index.ts`
+
+- Alterar todos os `return new Response(...)` com status nao-200 para **sempre retornar status 200** com `{ ok: false, error: "..." }` no body — isso garante que `supabase.functions.invoke` consegue ler o JSON em vez de lancar erro generico
+- Adicionar `console.log` em cada etapa (auth, code, secrets, short token, long token, /me, upsert) para facilitar depuracao futura
+- Manter CORS headers em todas as respostas
+
+---
+
+### 4. `src/pages/AccountsCallbackPage.tsx`
+
+- Sem mudanca visual
+- Ajustar apenas a logica de erro para exibir `res.error` retornado pelo hook (ja funciona com a correcao do hook)
+
+---
+
+### Arquivos
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/shared/StatusBadge.tsx` | Adicionar `quarantined` ao `statusMap` |
-| `src/pages/StoriesPage.tsx` | Validacao no `handlePublish`, botao remover por story |
-| `src/pages/LoopPage.tsx` | Adicionar listagem de loops criados com delete |
-| `src/pages/FunilPage.tsx` | Adicionar edicao inline de nome |
-| `src/hooks/useFunnels.ts` | Adicionar mutation `update` |
+| Migration SQL | Unique constraint em `(user_id, instagram_user_id)` |
+| `src/hooks/useInstagramConnect.ts` | `window.location.href`, melhor parse de erro |
+| `supabase/functions/instagram-oauth-callback/index.ts` | Status 200 sempre, logs por etapa |
 
 ### Sem mudancas
 
-- Layout, sidebar, topbar, visual global
-- Backend, schema, storage, auth
-- Nenhuma migration necessaria
-- Todas as outras paginas (Postar, Biblioteca, Fila, Saude, Contas, Aquecimento)
+- Layout, visual, sidebar, topbar, outras paginas
+- Edge function `instagram-oauth-start` (funciona corretamente)
+- `AccountsCallbackPage.tsx` (visual mantido, erro ja vem do hook)
 
