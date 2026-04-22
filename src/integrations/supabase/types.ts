@@ -14,16 +14,460 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      funnels: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      instagram_accounts: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          notes: string | null
+          status: Database["public"]["Enums"]["account_status"]
+          tags: Json | null
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["account_status"]
+          tags?: Json | null
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["account_status"]
+          tags?: Json | null
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      library_folders: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      loops: {
+        Row: {
+          account_id: string | null
+          cover_url: string | null
+          created_at: string
+          cycles: number | null
+          effects: Json | null
+          folder_id: string | null
+          id: string
+          interval_minutes: number
+          is_active: boolean
+          is_infinite: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          cover_url?: string | null
+          created_at?: string
+          cycles?: number | null
+          effects?: Json | null
+          folder_id?: string | null
+          id?: string
+          interval_minutes?: number
+          is_active?: boolean
+          is_infinite?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          cover_url?: string | null
+          created_at?: string
+          cycles?: number | null
+          effects?: Json | null
+          folder_id?: string | null
+          id?: string
+          interval_minutes?: number
+          is_active?: boolean
+          is_infinite?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loops_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loops_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "library_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_items: {
+        Row: {
+          created_at: string
+          file_name: string | null
+          file_url: string | null
+          folder_id: string | null
+          id: string
+          media_type: Database["public"]["Enums"]["media_type"]
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name?: string | null
+          file_url?: string | null
+          folder_id?: string | null
+          id?: string
+          media_type?: Database["public"]["Enums"]["media_type"]
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string | null
+          file_url?: string | null
+          folder_id?: string | null
+          id?: string
+          media_type?: Database["public"]["Enums"]["media_type"]
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_items_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "library_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          id: string
+          name?: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      queue_items: {
+        Row: {
+          account_id: string | null
+          account_username: string | null
+          caption_id: string | null
+          created_at: string
+          id: string
+          media_id: string | null
+          media_name: string | null
+          mode: Database["public"]["Enums"]["queue_mode"]
+          post_mode: Database["public"]["Enums"]["post_mode"]
+          scheduled_for: string | null
+          status: Database["public"]["Enums"]["queue_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          account_username?: string | null
+          caption_id?: string | null
+          created_at?: string
+          id?: string
+          media_id?: string | null
+          media_name?: string | null
+          mode?: Database["public"]["Enums"]["queue_mode"]
+          post_mode?: Database["public"]["Enums"]["post_mode"]
+          scheduled_for?: string | null
+          status?: Database["public"]["Enums"]["queue_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          account_username?: string | null
+          caption_id?: string | null
+          created_at?: string
+          id?: string
+          media_id?: string | null
+          media_name?: string | null
+          mode?: Database["public"]["Enums"]["queue_mode"]
+          post_mode?: Database["public"]["Enums"]["post_mode"]
+          scheduled_for?: string | null
+          status?: Database["public"]["Enums"]["queue_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queue_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "queue_items_caption_id_fkey"
+            columns: ["caption_id"]
+            isOneToOne: false
+            referencedRelation: "saved_captions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "queue_items_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "media_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_captions: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_random: boolean
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_random?: boolean
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_random?: boolean
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      stories: {
+        Row: {
+          account_id: string | null
+          created_at: string
+          id: string
+          media_id: string | null
+          status: Database["public"]["Enums"]["story_status"]
+          strategy: Database["public"]["Enums"]["story_strategy"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string
+          id?: string
+          media_id?: string | null
+          status?: Database["public"]["Enums"]["story_status"]
+          strategy?: Database["public"]["Enums"]["story_strategy"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string
+          id?: string
+          media_id?: string | null
+          status?: Database["public"]["Enums"]["story_status"]
+          strategy?: Database["public"]["Enums"]["story_strategy"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stories_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stories_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "media_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      warmup_accounts: {
+        Row: {
+          account_id: string
+          created_at: string
+          current_status: Database["public"]["Enums"]["warmup_status"]
+          daily_target: number
+          id: string
+          interval_minutes: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          current_status?: Database["public"]["Enums"]["warmup_status"]
+          daily_target?: number
+          id?: string
+          interval_minutes?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          current_status?: Database["public"]["Enums"]["warmup_status"]
+          daily_target?: number
+          id?: string
+          interval_minutes?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warmup_accounts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      account_status: "active" | "warming" | "paused" | "quarantined"
+      app_role: "admin" | "member" | "viewer"
+      media_type: "video" | "image"
+      post_mode: "sequential" | "burst"
+      queue_mode: "now" | "scheduled"
+      queue_status: "pending" | "processing" | "completed" | "paused" | "failed"
+      story_status: "draft" | "queued" | "posted" | "failed"
+      story_strategy: "none" | "link_bio" | "text_cta"
+      warmup_status: "active" | "completed" | "paused"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +594,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      account_status: ["active", "warming", "paused", "quarantined"],
+      app_role: ["admin", "member", "viewer"],
+      media_type: ["video", "image"],
+      post_mode: ["sequential", "burst"],
+      queue_mode: ["now", "scheduled"],
+      queue_status: ["pending", "processing", "completed", "paused", "failed"],
+      story_status: ["draft", "queued", "posted", "failed"],
+      story_strategy: ["none", "link_bio", "text_cta"],
+      warmup_status: ["active", "completed", "paused"],
+    },
   },
 } as const
