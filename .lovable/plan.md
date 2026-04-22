@@ -1,101 +1,171 @@
 
 
-## Plano: Sistema de Temas de Cor
+## Plano: Tornar o POSTFLOW Funcional (Backend + Frontend)
 
-### Arquitetura
+Este e um projeto grande. O plano esta dividido em fases sequenciais para manter qualidade e evitar quebras. Sugiro implementar em **3 fases**.
 
-O app ja usa CSS custom properties (HSL) em `:root` para todas as cores. A estrategia e criar classes CSS por tema (`[data-theme="red"]`, etc.) que sobrescrevem apenas as variaveis de accent/primary, mantendo backgrounds, cards e estrutura escura intactos.
+---
 
-### Arquivos novos
+### FASE 1 -- Storage, Upload e Biblioteca
 
-**1. `src/contexts/ThemeContext.tsx`**
+**1. Criar storage bucket `media`**
 
-Context + Provider que:
-- Armazena o tema ativo em state
-- Persiste em `localStorage` (chave `postflow-theme`)
-- Aplica `data-theme` no `document.documentElement`
-- Exporta `useTheme()` com `{ theme, setTheme }`
-- Temas: `blue | red | gray | purple | gold`
+Migration SQL:
+- Criar bucket `media` (privado)
+- RLS policies no `storage.objects`: usuarios so acessam seus proprios arquivos (path inicia com `user_id/`)
 
-**2. `src/components/layout/ThemeSelector.tsx`**
+**2. Adicionar colunas em `media_items`**
 
-Componente discreto com 5 circulos coloridos dentro de um `DropdownMenu`. Cada circulo mostra a cor primaria do tema. Clique aplica o tema instantaneamente. Posicionado na Topbar, entre o botao de agendamento e o avatar.
+Migration para adicionar:
+- `file_size bigint`
+- `mime_type text`
+- `duration_seconds numeric`
+- `processing_status text default 'raw'` (raw, processing, completed, failed)
+- `processing_log jsonb default '[]'`
+- `processed_file_path text`
+- `original_file_path text`
 
-### Arquivos editados
+**3. Adicionar colunas em `queue_items`**
 
-**3. `src/index.css`** -- Adicionar blocos de tema
+Migration para adicionar:
+- `processing_options jsonb default '{}'`
+- `output_media_id uuid references media_items(id)`
+- `error_message text`
 
-Apos o `:root` existente (que vira o tema `blue` padrao), adicionar:
+**4. Hook `useMediaUpload`**
 
-```css
-[data-theme="red"] {
-  --primary: 0 65% 48%;
-  --accent: 0 65% 48%;
-  --ring: 0 65% 48%;
-  --sidebar-primary: 0 65% 48%;
-  --sidebar-ring: 0 65% 48%;
-}
-[data-theme="gray"] {
-  --primary: 220 10% 50%;
-  --accent: 220 10% 50%;
-  --ring: 220 10% 50%;
-  --sidebar-primary: 220 10% 50%;
-  --sidebar-ring: 220 10% 50%;
-}
-[data-theme="purple"] {
-  --primary: 270 60% 55%;
-  --accent: 270 60% 55%;
-  --ring: 270 60% 55%;
-  --sidebar-primary: 270 60% 55%;
-  --sidebar-ring: 270 60% 55%;
-}
-[data-theme="gold"] {
-  --primary: 40 70% 50%;
-  --accent: 40 70% 50%;
-  --ring: 40 70% 50%;
-  --sidebar-primary: 40 70% 50%;
-  --sidebar-ring: 40 70% 50%;
-  --primary-foreground: 0 0% 10%;
-  --accent-foreground: 0 0% 10%;
-  --sidebar-primary-foreground: 0 0% 10%;
-}
-```
+Novo hook em `src/hooks/useMediaUpload.ts`:
+- Aceita File, valida tipo (MP4/MOV) e tamanho (100MB)
+- Upload para storage `media/{user_id}/{uuid}/{filename}`
+- Cria registro em `media_items` com file_url, file_name, file_size, mime_type
+- Retorna progresso de upload (usando XMLHttpRequest ou supabase upload com onUploadProgress)
+- Invalida query `['media_items']`
 
-Tambem atualizar `.glow-blue` para usar `var(--primary)` em vez de hardcoded, e renomear para `.glow-primary`. Atualizar `.gradient-mesh` para usar `var(--primary)`.
+**5. Hook `useMediaItems`**
 
-**4. `src/App.tsx`** -- Envolver com `ThemeProvider`
+Novo hook em `src/hooks/useMediaItems.ts`:
+- Lista media_items do usuario
+- Suporta filtro por folder_id
+- Retorna signed URLs para preview
 
-Adicionar `<ThemeProvider>` dentro do `QueryClientProvider`.
+**6. Atualizar PostarPage -- Upload funcional**
 
-**5. `src/components/layout/Topbar.tsx`** -- Adicionar `ThemeSelector`
+No bloco de upload:
+- Drag & drop real com `onDragOver/onDrop`
+- Input file hidden acionado pelo botao "Selecionar arquivos"
+- Barra de progresso durante upload
+- Lista de arquivos sendo enviados com status
+- Ao concluir, arquivo aparece como midia selecionada
 
-Importar e renderizar `<ThemeSelector />` na area direita da topbar, entre o botao "Novo Agendamento" e o badge ADM.
+**7. Modal de Biblioteca**
 
-**6. Buscar e atualizar referencias a `glow-blue`** em componentes para usar `glow-primary`.
+Novo componente `src/components/media/MediaLibraryModal.tsx`:
+- Dialog que lista media_items do usuario
+- Filtro por pasta (library_folders)
+- Preview com thumbnail ou icone de video
+- Selecao de midia(s)
+- Botao confirmar que retorna os IDs selecionados
 
-### Variaveis afetadas por tema
+**8. Atualizar BibliotecaPage**
 
-Apenas as variaveis de accent/destaque mudam:
-- `--primary`, `--accent`, `--ring`
-- `--sidebar-primary`, `--sidebar-ring`
-- `--primary-foreground` (apenas gold, que precisa texto escuro)
+- Ao clicar numa pasta, listar media_items daquela pasta
+- Permitir upload de arquivos diretamente na pasta
+- Mostrar contagem de itens por pasta
 
-Variaveis que NAO mudam (mantendo o dark mode):
-- `--background`, `--foreground`
-- `--card`, `--card-foreground`
-- `--secondary`, `--muted`, `--border`, `--input`
-- `--destructive`, `--success`, `--warning`, `--info`
+---
 
-### Comportamento
+### FASE 2 -- Fila, Agendamento e Legendas Funcionais
 
-- Tema padrao: `blue` (identico ao visual atual)
-- Troca instantanea sem reload (CSS custom properties)
-- Persistencia em `localStorage`
-- Sem flicker: tema aplicado antes do render via script inline ou no Provider
+**9. Atualizar PostarPage -- Agendamento real**
+
+- No modo "Agendar", mostrar date/time picker real
+- Persistir `scheduled_for` no queue_items
+- Botao "Iniciar automacao" cria item real em queue_items com:
+  - media_id da midia selecionada
+  - caption_id da legenda selecionada (se houver)
+  - mode (now/scheduled)
+  - post_mode (sequential/burst)
+  - processing_options (metadata_profile, smart_processing, variations)
+  - status: pending
+
+**10. Legendas -- editar**
+
+- Adicionar mutation `update` no `useCaptions` hook
+- Tornar botao Pencil funcional: inline edit ou modal simples
+- Ao criar item na fila, permitir associar legenda
+
+**11. FilaPage melhorias**
+
+- Mostrar mais detalhes por item (modo, agendamento, legenda associada)
+- Botao para alterar status manualmente (pending -> processing -> completed)
+- Filtros por status
+
+---
+
+### FASE 3 -- Configuracoes Avancadas e Processamento
+
+**12. Renomear "Anti-deteccao IA" para "Padronizacao inteligente"**
+
+No PostarPage, alterar apenas os textos:
+- "Anti-deteccao IA" -> "Padronizacao inteligente"
+- "Variacao automatica" -> "Normalizacao automatica de midia"
+- "Variacoes por video (alterna a cada ciclo)" -> "Versoes processadas por video"
+- Subtexto do metadata: "Como o video se identifica para o Instagram" -> "Perfil de compatibilidade tecnica"
+
+**13. Persistir configuracoes avancadas**
+
+As opcoes (smart_processing, metadata_profile, variations) sao salvas no `processing_options` JSON do queue_item ao criar o item na fila. Nao precisa de tabela separada.
+
+**14. Edge function `process-media`**
+
+Backend function que:
+- Recebe media_id e processing_options
+- Baixa arquivo do storage
+- Usa ffmpeg (via Deno FFI ou exec) para:
+  - Remover metadata EXIF/GPS para privacidade
+  - Normalizar container para MP4/H.264
+  - Gerar thumbnail (frame do segundo 1)
+  - Aplicar preset de metadata (auto/iphone/android)
+  - Gerar N versoes com leves variacoes de bitrate
+- Salva arquivos processados no storage
+- Atualiza media_items com processed_file_path, thumbnail_url, processing_status, processing_log
+
+**Nota importante sobre ffmpeg**: Edge functions Deno tem limitacoes de tempo (max 60s) e nao tem ffmpeg nativo. A abordagem pratica sera:
+- Para thumbnail: usar frame extraction via canvas no frontend, ou aceitar que o primeiro frame e suficiente
+- Para metadata removal e normalizacao: implementar o que for possivel server-side, e registrar o que foi aplicado no log
+- Marcar no processing_log o que foi feito vs o que nao foi possivel
+
+---
+
+### Resumo de arquivos
+
+**Novos:**
+- `src/hooks/useMediaUpload.ts`
+- `src/hooks/useMediaItems.ts`
+- `src/components/media/MediaLibraryModal.tsx`
+- `supabase/functions/process-media/index.ts`
+
+**Editados:**
+- `src/pages/PostarPage.tsx` (upload real, biblioteca, agendamento, rename labels)
+- `src/pages/BibliotecaPage.tsx` (listar midias por pasta, upload na pasta)
+- `src/hooks/useCaptions.ts` (adicionar update mutation)
+- `src/hooks/useQueueItems.ts` (adicionar processing_options no create)
+
+**Migrations:**
+- Criar bucket `media` + RLS
+- ALTER TABLE `media_items` ADD COLUMN (6 colunas)
+- ALTER TABLE `queue_items` ADD COLUMN (3 colunas)
 
 ### Sem mudancas
 
-- Nenhuma alteracao de layout, estrutura ou componentes
-- Nenhuma alteracao no backend
-- Nenhuma alteracao em paginas existentes
+- Layout, sidebar, topbar, navegacao
+- Sistema de temas
+- Auth, RLS existentes
+- Visual premium dark mode
+
+---
+
+### Sugestao de execucao
+
+Dado o tamanho, recomendo aprovar e implementar **Fase 1 primeiro** (storage + upload + biblioteca). Depois seguimos com Fase 2 e 3. Posso implementar tudo de uma vez se preferir, mas em fases o risco de quebra e menor.
 
