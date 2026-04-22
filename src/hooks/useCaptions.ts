@@ -45,5 +45,5 @@ export function useCaptions() {
     onError: () => toast.error('Erro ao remover legenda'),
   });
 
-  return { captions: query.data ?? [], isLoading: query.isLoading, create, remove };
+  return { captions: query.data ?? [], isLoading: query.isLoading, create, update, remove };
 }
