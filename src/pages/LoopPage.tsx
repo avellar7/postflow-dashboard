@@ -166,7 +166,7 @@ export default function LoopPage() {
             {coverPath ? (
               <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/30">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
                   <span className="text-xs text-foreground truncate">{coverName}</span>
                 </div>
                 <button onClick={() => { setCoverPath(null); setCoverName(null); }} className="text-muted-foreground hover:text-destructive">

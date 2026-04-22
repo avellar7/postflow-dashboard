@@ -129,7 +129,7 @@ export default function StoriesPage() {
                 {uploads.map((u, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
                     {u.status === 'uploading' && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
-                    {u.status === 'done' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                    {u.status === 'done' && <CheckCircle2 className="w-3 h-3 text-primary" />}
                     {u.status === 'error' && <AlertCircle className="w-3 h-3 text-destructive" />}
                     <span className="truncate flex-1 text-muted-foreground">{u.file.name}</span>
                     {u.status === 'uploading' && <Progress value={u.progress} className="w-20 h-1.5" />}
