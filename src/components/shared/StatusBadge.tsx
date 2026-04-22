@@ -22,6 +22,7 @@ const statusMap: Record<string, { label: string; variant: string }> = {
   active: { label: 'Ativo', variant: 'success' },
   warming: { label: 'Aquecendo', variant: 'warning' },
   quarantine: { label: 'Quarentena', variant: 'destructive' },
+  quarantined: { label: 'Quarentena', variant: 'destructive' },
   published: { label: 'Publicado', variant: 'success' },
   failed: { label: 'Falhou', variant: 'destructive' },
 };
