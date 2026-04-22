@@ -1,17 +1,19 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useFolders } from '@/hooks/useFolders';
 import { useLoops } from '@/hooks/useLoops';
-import { toast } from 'sonner';
-import { RefreshCw, Infinity, Upload, FlipHorizontal, Palette, ZoomIn, SlidersHorizontal, ShieldCheck, EyeOff } from 'lucide-react';
+import { useMediaUpload } from '@/hooks/useMediaUpload';
+import { RefreshCw, Infinity, Upload, FlipHorizontal, Palette, ZoomIn, SlidersHorizontal, ShieldCheck, EyeOff, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 export default function LoopPage() {
   const { accounts } = useAccounts();
   const { folders } = useFolders();
   const { create: createLoop } = useLoops();
+  const { uploads, uploadFiles, isUploading } = useMediaUpload();
 
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedFolderId, setSelectedFolderId] = useState('');
@@ -19,11 +21,52 @@ export default function LoopPage() {
   const [cycles, setCycles] = useState(3);
   const [interval, setInterval_] = useState(30);
   const [effects, setEffects] = useState({ mirror: false, invert: false, zoom: false, blur: false });
-  const [antiDetection, setAntiDetection] = useState(false);
+  const [smartProcessing, setSmartProcessing] = useState(false);
   const [metadataProfile, setMetadataProfile] = useState<'auto' | 'iphone' | 'android' | 'off'>('auto');
   const [variations, setVariations] = useState(3);
 
+  // Cover upload state
+  const [coverPath, setCoverPath] = useState<string | null>(null);
+  const [coverName, setCoverName] = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [draggingCover, setDraggingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
   const activeEffectsCount = Object.values(effects).filter(Boolean).length;
+
+  const handleCoverFiles = useCallback(async (files: File[]) => {
+    const file = files[0];
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      const { toast } = await import('sonner');
+      toast.error('Formato não suportado. Use JPG, PNG ou WEBP.');
+      return;
+    }
+    setCoverUploading(true);
+    try {
+      const results = await uploadFiles([file]);
+      if (results.length > 0) {
+        setCoverPath(results[0].file_url);
+        setCoverName(results[0].title);
+      }
+    } finally {
+      setCoverUploading(false);
+    }
+  }, [uploadFiles]);
+
+  const handleCoverDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDraggingCover(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length) handleCoverFiles(files);
+  }, [handleCoverFiles]);
+
+  const handleCoverInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length) handleCoverFiles(files);
+    e.target.value = '';
+  };
 
   const handleCreateLoop = () => {
     createLoop.mutate({
@@ -33,6 +76,7 @@ export default function LoopPage() {
       cycles: infiniteLoop ? null : cycles,
       interval_minutes: interval,
       effects: effects as any,
+      cover_url: coverPath,
     });
   };
 
@@ -104,18 +148,52 @@ export default function LoopPage() {
         </div>
 
         <div className="space-y-6">
-          {/* Reel Cover */}
+          {/* Reel Cover - functional upload */}
           <div className="glass-card p-6">
             <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
               <Upload className="w-4 h-4 text-primary" /> Capa do Reel
             </h2>
             <p className="text-xs text-muted-foreground mb-4">Personalize a capa que aparece no perfil.</p>
 
-            <div className="border-2 border-dashed border-border/80 rounded-xl p-8 text-center hover:border-primary/40 transition-colors cursor-pointer">
-              <Upload className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground">Clique para enviar uma imagem</p>
-              <p className="text-[10px] text-muted-foreground/60">JPG, PNG — 1080×1920 recomendado</p>
-            </div>
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleCoverInput}
+            />
+
+            {coverPath ? (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border/30">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-foreground truncate">{coverName}</span>
+                </div>
+                <button onClick={() => { setCoverPath(null); setCoverName(null); }} className="text-muted-foreground hover:text-destructive">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => coverInputRef.current?.click()}
+                onDrop={handleCoverDrop}
+                onDragOver={e => { e.preventDefault(); setDraggingCover(true); }}
+                onDragLeave={() => setDraggingCover(false)}
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                  draggingCover ? 'border-primary bg-primary/5' : 'border-border/80 hover:border-primary/40'
+                }`}
+              >
+                {coverUploading ? (
+                  <Loader2 className="w-8 h-8 text-primary mx-auto mb-2 animate-spin" />
+                ) : (
+                  <Upload className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {coverUploading ? 'Enviando...' : 'Clique ou arraste uma imagem'}
+                </p>
+                <p className="text-[10px] text-muted-foreground/60">JPG, PNG, WEBP — 1080×1920 recomendado</p>
+              </div>
+            )}
           </div>
 
           {/* Effects */}
@@ -158,29 +236,29 @@ export default function LoopPage() {
             <p className="text-[10px] text-muted-foreground/60 mt-3">Esses efeitos são visuais e aplicados na hora da postagem.</p>
           </div>
 
-          {/* Anti-detecção & Metadata */}
+          {/* Padronização inteligente & Metadata */}
           <div className="glass-card p-6 space-y-5">
-            {/* Anti-detecção IA */}
-            <div className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${antiDetection ? 'border-primary/50 bg-primary/5' : 'border-border/30 bg-secondary/30'}`}>
+            {/* Padronização inteligente */}
+            <div className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${smartProcessing ? 'border-primary/50 bg-primary/5' : 'border-border/30 bg-secondary/30'}`}>
               <div className="flex items-center gap-3">
                 <ShieldCheck className="w-4 h-4 text-primary" />
                 <div>
-                  <p className="text-xs font-semibold text-foreground">Anti-detecção IA</p>
-                  <p className="text-[10px] text-muted-foreground">Variação automática</p>
+                  <p className="text-xs font-semibold text-foreground">Padronização inteligente</p>
+                  <p className="text-[10px] text-muted-foreground">Normalização automática de mídia</p>
                 </div>
               </div>
               <button
-                onClick={() => setAntiDetection(!antiDetection)}
-                className={`w-10 h-5 rounded-full transition-colors relative ${antiDetection ? 'bg-primary' : 'bg-secondary'}`}
+                onClick={() => setSmartProcessing(!smartProcessing)}
+                className={`w-10 h-5 rounded-full transition-colors relative ${smartProcessing ? 'bg-primary' : 'bg-secondary'}`}
               >
-                <span className={`w-4 h-4 rounded-full bg-foreground absolute top-0.5 transition-all ${antiDetection ? 'left-5' : 'left-0.5'}`} />
+                <span className={`w-4 h-4 rounded-full bg-foreground absolute top-0.5 transition-all ${smartProcessing ? 'left-5' : 'left-0.5'}`} />
               </button>
             </div>
 
             {/* Perfil de metadata */}
             <div>
               <label className="text-xs font-medium text-foreground block mb-0.5">Perfil de metadata</label>
-              <p className="text-[10px] text-muted-foreground mb-3">Como o vídeo se identifica para o Instagram</p>
+              <p className="text-[10px] text-muted-foreground mb-3">Perfil de compatibilidade técnica</p>
               <div className="flex gap-2">
                 {([
                   { value: 'auto', label: 'Auto' },
@@ -199,16 +277,16 @@ export default function LoopPage() {
               </div>
             </div>
 
-            {/* Variações por vídeo */}
+            {/* Versões processadas por vídeo */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-foreground">Variações por vídeo (alterna a cada ciclo)</label>
+                <label className="text-xs font-medium text-foreground">Versões processadas por vídeo</label>
                 <span className="text-xs font-bold text-primary">{variations}x</span>
               </div>
               <input type="range" min={1} max={5} value={variations} onChange={e => setVariations(Number(e.target.value))}
                 className="w-full accent-primary" />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Cada vídeo da pasta gera {variations} {variations === 1 ? 'versão' : 'versões diferentes'}; o sistema alterna entre elas a cada ciclo.
+                Cada vídeo da pasta gera {variations} {variations === 1 ? 'versão processada' : 'versões processadas'}.
               </p>
             </div>
           </div>
