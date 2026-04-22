@@ -1,118 +1,79 @@
 
 
-## Plano: Stories funcional + salvamento global de links e CTAs
+## Plano: Auditoria tecnica completa do POSTFLOW — correcoes
 
-### Resumo
+### Resumo da auditoria
 
-Adicionar duas tabelas (`saved_links`, `saved_ctas`), duas colunas na tabela `stories` (`link_url`, `cta_text`), criar hooks CRUD reutilizaveis, tornar a secao "Estrategia de link" funcional com campos reais e reutilizacao, e implementar "Limpar tudo" no historico.
+Apos revisar todos os arquivos, hooks, paginas, tipos e banco, o app esta em bom estado geral. A maioria dos fluxos CRUD esta corretamente conectada ao backend com RLS, toasts e loading states. Seguem os problemas encontrados e as correcoes necessarias:
 
 ---
 
-### 1. Migration SQL
+### Problemas encontrados
 
-```sql
--- Tabela saved_links
-CREATE TABLE public.saved_links (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  label text,
-  url text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE public.saved_links ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users manage own links" ON public.saved_links
-  FOR ALL TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+| # | Area | Problema | Severidade |
+|---|------|----------|------------|
+| 1 | Aquecimento | `useWarmupAccounts` faz join `*, instagram_accounts(username)` mas o resultado e acessado como `(w as any).instagram_accounts?.username` — funciona mas depende de cast unsafe. Se o join falhar silenciosamente, mostra "Conta" generico | Baixa |
+| 2 | LoopPage | Console warning: "Function components cannot be given refs" — nao e um bug funcional, mas polui o console | Baixa |
+| 3 | PostarPage | `handleStartAutomation` casta `as any` ao chamar `createQueueItem.mutate` — funciona mas perde type safety | Baixa |
+| 4 | Stories | Botao "Publicar Story" nao valida se ha midia selecionada — permite publicar story vazio | Media |
+| 5 | Stories | Historico nao mostra botao de remover individual por story (so "Limpar tudo") | Baixa |
+| 6 | Saude | `StatusBadge` recebe `status="quarantine"` mas `StatusBadge` nao tem mapeamento para `"quarantined"` (o valor real do enum no banco) — pode mostrar texto cru | Media |
+| 7 | Fila | Nao ha botao para marcar item como "failed" — so pode ir de pending para processing e de processing para completed | Baixa |
+| 8 | Captions | Botao "Gerar com IA" e mockado — coloca texto fixo, nao gera nada real | Baixa (documentado) |
+| 9 | LoopPage | Nao mostra lista de loops ja criados — so permite criar novos | Media |
+| 10 | Funil | Nao ha edicao de nome de funil — so criar e deletar | Baixa |
 
--- Tabela saved_ctas
-CREATE TABLE public.saved_ctas (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  label text,
-  content text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE public.saved_ctas ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users manage own ctas" ON public.saved_ctas
-  FOR ALL TO authenticated
-  USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+---
 
--- Colunas extras em stories
-ALTER TABLE public.stories ADD COLUMN link_url text;
-ALTER TABLE public.stories ADD COLUMN cta_text text;
+### Correcoes a implementar
+
+**1. StoriesPage — validacao antes de publicar**
+
+Adicionar validacao em `handlePublish`:
+- Se `linkStrategy === 'link_bio'` e `linkUrl` vazio, mostrar toast de erro
+- Se `linkStrategy === 'text_cta'` e `ctaText` vazio, mostrar toast de erro
+- Adicionar botao de remover individual em cada story do historico
+
+**2. StatusBadge — adicionar mapeamento "quarantined"**
+
+Adicionar ao `statusMap`:
 ```
+quarantined: { label: 'Quarentena', variant: 'destructive' }
+```
+Assim tanto `quarantine` quanto `quarantined` funcionam.
+
+**3. LoopPage — mostrar lista de loops criados**
+
+Adicionar secao abaixo do formulario com os loops ja criados (usando `useLoops().loops`), com botao de remover. Segue o mesmo padrao visual das outras paginas (grid de cards glass).
+
+**4. FunilPage — adicionar edicao de nome**
+
+Adicionar edicao inline de nome (mesmo padrao da BibliotecaPage: icone Pencil, input inline, Enter/Escape/blur). Requer adicionar mutation `update` ao `useFunnels` hook.
+
+**5. AquecimentoPage — melhorar display do username**
+
+Remover o cast `(w as any)` e tipar corretamente o retorno do join. Se o join falhar, usar fallback baseado em `account_id`.
+
+**6. PostarPage — remover cast `as any`**
+
+Ajustar o tipo do input do `createQueueItem.mutate` para aceitar `processing_options` corretamente, ou manter o cast com um comentario explicativo.
 
 ---
 
-### 2. Novos hooks
+### Arquivos editados
 
-**`src/hooks/useSavedLinks.ts`**
-- CRUD completo: query, create, update, remove
-- Mesmo padrao de `useCaptions`
-- Toasts em portugues
-
-**`src/hooks/useSavedCtas.ts`**
-- CRUD completo: query, create, update, remove
-- Mesmo padrao de `useCaptions`
-- Toasts em portugues
-
----
-
-### 3. Reescrever `src/pages/StoriesPage.tsx`
-
-**Estrategia de link — campos condicionais:**
-
-- `none`: sem campos extras (igual hoje)
-- `link_bio`: mostrar input de URL + botao "Salvar link" + popover/dropdown com links salvos
-  - Validacao basica de URL
-  - Ao selecionar link salvo, preenche o campo
-- `text_cta`: mostrar textarea de CTA + botao "Salvar CTA" + popover/dropdown com CTAs salvos
-  - Ao selecionar CTA salvo, preenche o campo
-
-**Publicar Story:**
-- Incluir `link_url` e `cta_text` no payload do `createStory.mutate`
-
-**Limpar tudo:**
-- Implementar funcao real que deleta todos os stories do usuario
-- Confirmar com dialog antes de executar
-- Toast de sucesso
-
-**Historico:**
-- Mostrar estrategia e trecho do link/CTA em cada item do historico
-
----
-
-### 4. Componente reutilizavel `src/components/shared/SavedItemPicker.tsx`
-
-Componente generico de popover/dropdown para selecionar item salvo:
-- Props: `items`, `onSelect`, `label`, `emptyText`
-- Renderiza lista compacta com botao de selecionar
-- Reutilizavel para links, CTAs, e futuramente outros conteudos
-
----
-
-### Arquivos
-
-**Novos:**
-- `src/hooks/useSavedLinks.ts`
-- `src/hooks/useSavedCtas.ts`
-- `src/components/shared/SavedItemPicker.tsx`
-
-**Editados:**
-- `src/pages/StoriesPage.tsx`
-- `src/hooks/useStories.ts` (adicionar mutation `removeAll`)
-
-**Migration:**
-- Criar `saved_links`, `saved_ctas`
-- Adicionar `link_url`, `cta_text` em `stories`
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/components/shared/StatusBadge.tsx` | Adicionar `quarantined` ao `statusMap` |
+| `src/pages/StoriesPage.tsx` | Validacao no `handlePublish`, botao remover por story |
+| `src/pages/LoopPage.tsx` | Adicionar listagem de loops criados com delete |
+| `src/pages/FunilPage.tsx` | Adicionar edicao inline de nome |
+| `src/hooks/useFunnels.ts` | Adicionar mutation `update` |
 
 ### Sem mudancas
 
-- Layout, sidebar, topbar, outras paginas
-- Visual premium dark mode
-- Hooks e componentes existentes (captions, media, etc.)
+- Layout, sidebar, topbar, visual global
+- Backend, schema, storage, auth
+- Nenhuma migration necessaria
+- Todas as outras paginas (Postar, Biblioteca, Fila, Saude, Contas, Aquecimento)
 
