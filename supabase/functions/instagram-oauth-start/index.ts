@@ -53,19 +53,20 @@ Deno.serve(async (req) => {
     const nonce = crypto.randomUUID();
     const state = `${userId}.${nonce}`;
 
-    const scope = [
-      "instagram_business_basic",
-      "instagram_business_content_publish",
-    ].join(",");
+    const scope = "instagram_business_basic,instagram_business_content_publish";
 
-    const url = new URL("https://www.instagram.com/oauth/authorize");
-    url.searchParams.set("client_id", clientId);
-    url.searchParams.set("redirect_uri", redirectUri);
-    url.searchParams.set("response_type", "code");
-    url.searchParams.set("scope", scope);
-    url.searchParams.set("state", state);
+    const params = new URLSearchParams();
+    params.set("enable_fb_login", "0");
+    params.set("force_authentication", "1");
+    params.set("client_id", clientId);
+    params.set("redirect_uri", redirectUri);
+    params.set("response_type", "code");
+    params.set("scope", scope);
+    params.set("state", state);
 
-    return new Response(JSON.stringify({ url: url.toString() }), {
+    const oauthUrl = `https://www.instagram.com/oauth/authorize?${params.toString()}`;
+
+    return new Response(JSON.stringify({ url: oauthUrl }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
